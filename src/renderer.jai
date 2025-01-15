@@ -19,7 +19,7 @@ make_render_state :: () -> (*RenderState, bool) {
         return null, false;
     }
 
-    render_state.renderer = SDL_CreateRenderer(render_state.window, -1, .ACCELERATED | .PRESENTVSYNC);
+    render_state.renderer = SDL_CreateRenderer(render_state.window, -1, 0);
     if !render_state.renderer {
         log("SDL_CreateRenderer: %\n", to_string(SDL_GetError()));
         return null, false;
@@ -65,7 +65,7 @@ render_rect :: (using render_state: *RenderState, texture_rect: SDL_Rect, pos: V
     }
 }
 
-render :: (using state: *AppState) {
+render :: (using state: *AppState, alpha: float32) {
     using render_state;
 
     SDL_SetRenderDrawColor(renderer, 100, 100, 100, 1);
@@ -83,8 +83,7 @@ render :: (using state: *AppState) {
 
     texture, ok = Hash_Table.table_find(*textures, game_state.player.texture_id);
     assert(ok, "couldn't find texture");
-    render_rect(render_state, game_state.player.texture_rect, game_state.player.position, texture, true);
+    render_rect(render_state, game_state.player.texture_rect, lerp_vec(game_state.player.prev_position, alpha), texture, true);
 
     SDL_RenderPresent(renderer);
-    SDL_Delay(1);
 }

@@ -31,3 +31,7 @@ round_f32 :: (num: float32) -> float32 {
     sign := ifx num >= 0 then 1 else -1;
     return floor(num + sign * 0.5);
 }
+
+lerp_vec :: (vec: Vector2, a: float32) -> Vector2 {
+    return Vector2.{ lerp(vec.x, vec.x, a), lerp(vec.y, vec.y, a) };
+}

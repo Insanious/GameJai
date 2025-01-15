@@ -11,10 +11,20 @@ GameState :: struct {
     pointer: Tile;
 }
 
+PLAYER_STATE :: enum u16 {
+    IDLE;
+    RUNNING;
+}
+
 Player :: struct {
     texture_id: string = "resources/mage.bmp";
     texture_rect: SDL_Rect;
     position: Vector2;
+    prev_position: Vector2;
+
+    state: PLAYER_STATE = .IDLE;
+    target: Vector2;
+    speed: float32 = 160;
 }
 
 Tile :: struct {
@@ -41,7 +51,21 @@ make_game_state :: () -> (*GameState, bool) {
     return game_state, true;
 }
 
-simulate :: (state: *AppState) {}
+simulate :: (using state: *AppState) {
+    if game_state.player.state == .RUNNING {
+        using game_state;
+
+        dir := normalize(player.target - player.position);
+        vel := dir * FRAMETIME * player.speed;
+        player.position += vel;
+        next_distance := length_squared(player.target - player.position);
+        if next_distance <= length_squared(vel) {
+            player.state = .IDLE;
+            player.position = player.target;
+        }
+        player.prev_position = player.position;
+    }
+}
 
 update :: (using state: *AppState, delta: float32) {
     pan_dir: Vector2;
@@ -66,8 +90,9 @@ update :: (using state: *AppState, delta: float32) {
     mouse_pos = snapped(mouse_pos, HALF_TILE_SIZE);
     game_state.pointer.position = mouse_pos;
 
-    if input_state.left_mouse {
-
+    if input_state.right_mouse {
+        game_state.player.target = mouse_pos;
+        game_state.player.state = .RUNNING;
     }
 }
 

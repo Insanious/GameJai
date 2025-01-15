@@ -5,7 +5,7 @@ InputState :: struct {
     scroll: s8;
 
     mouse_position: SDL_Point;
-    left_mouse: bool;
+    left_mouse, right_mouse: bool;
 }
 
 input :: (state: *AppState, event: *SDL_Event) {
@@ -30,6 +30,7 @@ input :: (state: *AppState, event: *SDL_Event) {
             down := event.type == SDL_MOUSEBUTTONDOWN;
             if event.button.button == {
                 case SDL_BUTTON_LEFT; input_state.left_mouse = down;
+                case SDL_BUTTON_RIGHT; input_state.right_mouse = down;
             }
     }
 }

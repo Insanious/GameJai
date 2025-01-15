@@ -45,6 +45,7 @@ main :: () {
     if !ok quit(*app);
 
     accumulator: float64;
+    alpha: float32;
     delta: float32;
     event: SDL_Event;
     while true {
@@ -57,13 +58,14 @@ main :: () {
 
         delta = clock_reset(*app.clock);
         accumulator += delta;
+        alpha = cast(float32, clamp(accumulator / FRAMETIME, 0.0, 1.0));
         while accumulator >= FRAMETIME {
             accumulator -= FRAMETIME;
             simulate(*app);
         }
         update(*app, delta);
 
-        render(*app);
+        render(*app, alpha);
     }
 
     quit(*app);
