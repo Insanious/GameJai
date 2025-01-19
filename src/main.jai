@@ -7,7 +7,7 @@
 #load "common.jai";
 
 FRAMETIME   ::      1.0 / 60.0;
-SCREEN_SIZE ::      Vector2.{ 800, 600 };
+SCREEN_SIZE ::      Vector2i.{ 800, 600 };
 
 AppState :: struct {
     clock:        Clock;
@@ -58,14 +58,13 @@ main :: () {
 
         delta = clock_reset(*app.clock);
         accumulator += delta;
-        alpha = cast(float32, clamp(accumulator / FRAMETIME, 0.0, 1.0));
         while accumulator >= FRAMETIME {
             accumulator -= FRAMETIME;
             simulate(*app);
         }
         update(*app, delta);
 
-        render(*app, alpha);
+        render(*app, cast(float32, clamp(accumulator / FRAMETIME, 0.0, 1.0)));
     }
 
     quit(*app);
