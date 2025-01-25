@@ -6,15 +6,19 @@
 #load "input.jai";
 #load "common.jai";
 
-FRAMETIME   ::      1.0 / 60.0;
-SCREEN_SIZE ::      Vector2i.{ 800, 600 };
+FRAMETIME   :: 1.0 / 60.0;
+SCREEN_SIZE :: Vector2i.{ 800, 600 };
+
+STATE_COUNT :: 256;
+GAME_STATES : [STATE_COUNT]GameState;
+INPUT_STATES: [STATE_COUNT]InputState;
 
 AppState :: struct {
-    clock:        Clock;
-
-    input_state:  *InputState;
-    game_state:   *GameState;
+    clock: Clock;
     render_state: *RenderState;
+
+    current: s16 = 0;
+    previous: s16 = 0;
 }
 
 init :: (args: []string) -> (AppState, bool) {
@@ -23,18 +27,15 @@ init :: (args: []string) -> (AppState, bool) {
     render_state, render_ok := make_render_state();
     if !render_ok return .{}, false;
 
-    game_state, game_ok := make_game_state();
-    if !game_ok return .{}, false;
+    init_game_state(*GAME_STATES[0]);
 
-    input_state := New(InputState);
-
-    return AppState.{ clock_now(), input_state, game_state, render_state }, true;
+    return AppState.{ clock=clock_now(), render_state=render_state }, true;
 }
 
-quit :: (state: *AppState) {
-    if state.render_state {
-        if state.render_state.window    SDL_DestroyWindow(state.render_state.window);
-        if state.render_state.renderer  SDL_DestroyRenderer(state.render_state.renderer);
+quit :: (using state: *AppState) {
+    if render_state {
+        if render_state.window    SDL_DestroyWindow(render_state.window);
+        if render_state.renderer  SDL_DestroyRenderer(render_state.renderer);
     }
     SDL_Quit();
     exit(0);
@@ -45,26 +46,52 @@ main :: () {
     if !ok quit(*app);
 
     accumulator: float64;
-    alpha: float32;
-    delta: float32;
     event: SDL_Event;
+    previous_input: InputState;
+    accumulated_input: InputState;
+    game_state: *GameState;
+    input_state: *InputState;
+
     while true {
         reset_temporary_storage();
 
         while SDL_PollEvent(*event)
-            input(*app, *event);
+            input(*accumulated_input, *previous_input, *event);
 
-        if app.input_state.exit == true break;
+        if accumulated_input.exit == true break;
 
-        delta = clock_reset(*app.clock);
+        delta := clock_reset(*app.clock);
         accumulator += delta;
-        while accumulator >= FRAMETIME {
-            accumulator -= FRAMETIME;
-            simulate(*app);
-        }
-        update(*app, delta);
+        num_ticks := cast(u8, floor(accumulator / FRAMETIME));
 
-        render(*app, cast(float32, clamp(accumulator / FRAMETIME, 0.0, 1.0)));
+        if num_ticks > 0 {
+            accumulator -= FRAMETIME * xx num_ticks;
+            for 0..num_ticks-1 {
+                previous := app.current;
+                app.current = (app.current + 1) % STATE_COUNT;
+
+                game_state = *GAME_STATES[app.current];
+                input_state = *INPUT_STATES[app.current];
+
+                memcpy(game_state, *GAME_STATES[previous], size_of(GameState));
+                memcpy(input_state, *accumulated_input, size_of(InputState));
+
+                SDL_GetMouseState(xx *input_state.mouse_position.x, xx *input_state.mouse_position.y);
+
+                simulate(game_state, input_state, FRAMETIME);
+
+                // reset transient inputs
+                accumulated_input.LMB_pressed = false;
+                accumulated_input.RMB_pressed = false;
+                accumulated_input.scroll_delta = 0;
+            }
+            memcpy(*previous_input, *accumulated_input, size_of(InputState));
+            app.previous = (app.current - num_ticks + STATE_COUNT) % STATE_COUNT;
+        }
+
+        alpha := cast(float32) clamp(accumulator / FRAMETIME, 0.0, 1.0);
+        render(*GAME_STATES[app.current], *GAME_STATES[app.previous], app.render_state, alpha);
+
     }
 
     quit(*app);
