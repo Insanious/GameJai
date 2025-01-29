@@ -1,10 +1,16 @@
 #import "Basic";
 #import "SDL";
 #import "Math";
+#import "Random";
+#import "Yojimbo"()(ENABLE_LOGGING=true);
+#import "IPAddress"()(ENABLE_LOGGING=true);
+#import "Serialize"()(ENABLE_LOGGING=true);
+#import "Reliable"()(ENABLE_LOGGING=true);
 #load "renderer.jai";
 #load "game.jai";
 #load "input.jai";
 #load "common.jai";
+#load "network.jai";
 
 FRAMETIME   :: 1.0 / 60.0;
 SCREEN_SIZE :: Vector2i.{ 800, 600 };
@@ -12,6 +18,7 @@ SCREEN_SIZE :: Vector2i.{ 800, 600 };
 STATE_COUNT :: 256;
 GAME_STATES : [STATE_COUNT]GameState;
 INPUT_STATES: [STATE_COUNT]InputState;
+
 
 AppState :: struct {
     clock: Clock;
@@ -32,7 +39,9 @@ init :: (args: []string) -> (AppState, bool) {
     return AppState.{ clock=clock_now(), render_state=render_state }, true;
 }
 
-quit :: (using state: *AppState) {
+quit :: (using state: *AppState, network_manager: *NetworkManager = null) {
+    if network_manager deinit(network_manager);
+
     if render_state {
         if render_state.window    SDL_DestroyWindow(render_state.window);
         if render_state.renderer  SDL_DestroyRenderer(render_state.renderer);
@@ -41,9 +50,37 @@ quit :: (using state: *AppState) {
     exit(0);
 }
 
+on_client_connected_override :: (server: *Server, clientIndex: int) {
+    log("on_client_connected_override w/ client '%'\n", clientIndex);
+}
+
+logger :: (message: string, data: *void, info: Log_Info) {
+    if !message
+        return;
+    if info.common_flags & .VERY_VERBOSE_ONLY && context.log_level < .VERY_VERBOSE
+        return;
+    if info.common_flags & .VERBOSE_ONLY && context.log_level < .VERBOSE
+        return;
+
+    to_standard_error := false;
+
+    if message[message.count-1] != #char "\n" {
+        write_strings(message, "\n", to_standard_error = to_standard_error);
+    } else {
+        write_string(message, to_standard_error = to_standard_error);
+    }
+}
+
 main :: () {
+    context.logger = logger;
+    context.log_level = .VERY_VERBOSE;
+
     app, ok := init(get_command_line_arguments());
-    if !ok quit(*app);
+    if !ok quit(*app, null);
+    if !yojimbo_init() quit(*app, null);
+
+    network_manager: NetworkManager;
+    make_network_manager(*network_manager);
 
     accumulator: float64;
     event: SDL_Event;
@@ -64,7 +101,12 @@ main :: () {
         accumulator += delta;
         num_ticks := cast(u8, floor(accumulator / FRAMETIME));
 
+        network_manager.apollo_time += to_apollo(delta);
+
         if num_ticks > 0 {
+            if !network_manager_update(*network_manager, delta)
+                break;
+
             accumulator -= FRAMETIME * xx num_ticks;
             for 0..num_ticks-1 {
                 previous := app.current;
@@ -91,8 +133,7 @@ main :: () {
 
         alpha := cast(float32) clamp(accumulator / FRAMETIME, 0.0, 1.0);
         render(*GAME_STATES[app.current], *GAME_STATES[app.previous], app.render_state, alpha);
-
     }
 
-    quit(*app);
+    quit(*app, *network_manager);
 }

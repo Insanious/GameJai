@@ -10,7 +10,9 @@ RenderState :: struct {
 
 make_render_state :: () -> (*RenderState, bool) {
     render_state := New(RenderState);
-    render_state.window = SDL_CreateWindow("Game", 400, 300, SCREEN_SIZE.x, SCREEN_SIZE.y, 0);
+    #if SERVER              render_state.window = SDL_CreateWindow("Game Server", 400, 300, SCREEN_SIZE.x, SCREEN_SIZE.y, 0);
+    #if CLIENT              render_state.window = SDL_CreateWindow("Game Client", 400, 300, SCREEN_SIZE.x, SCREEN_SIZE.y, 0);
+    #if !SERVER && !CLIENT  render_state.window = SDL_CreateWindow("Game", 400, 300, SCREEN_SIZE.x, SCREEN_SIZE.y, 0);
     if !render_state.window {
         log("SDL_CreateWindow: %\n", to_string(SDL_GetError()));
         return null, false;
