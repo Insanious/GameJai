@@ -3,26 +3,104 @@ SERVER_PORT         :: 60000;
 WAIT_FOR_PACKETS_MS :: 16;
 MAX_CLIENTS         :: 8;
 
-TestMessage :: struct {
+PlayerMoveMessage :: struct {
     using #as base: Message;
 
-    sequence: u16;
+    x: u16;
+    y: u16;
+    game_state_index: s16;
 
     serializer :: MessageSerializer.{
-        create = () -> *Message {
-            return New(TestMessage);
-        },
+        create = () -> *Message { return New(PlayerMoveMessage); },
         serialize = (stream: *Stream, message: *Message) -> bool {
-            m := cast(*TestMessage) message;
-            serialize_bits(stream, *m.sequence, 16);
+            m := cast(*PlayerMoveMessage) message;
+            serialize_bits(stream, *m.x, 16);
+            serialize_bits(stream, *m.y, 16);
+            serialize_bits(stream, *m.game_state_index, 16);
             return true;
         }
     };
 }
 
-TestMessageFactory: MessageFactory : MessageSerializer.[
-    TestMessage.serializer,
+NewPlayerMessage :: struct {
+    using #as base: Message;
+
+    uuid: u64;
+    x: u16;
+    y: u16;
+    game_state_index: s16;
+
+    serializer :: MessageSerializer.{
+        create = () -> *Message { return New(NewPlayerMessage); },
+        serialize = (stream: *Stream, message: *Message) -> bool {
+            m := cast(*NewPlayerMessage) message;
+            serialize_bits(stream, *m.uuid, 64);
+            serialize_bits(stream, *m.x, 16);
+            serialize_bits(stream, *m.y, 16);
+            serialize_bits(stream, *m.game_state_index, 16);
+            return true;
+        }
+    };
+}
+
+ClientConnectMessage :: struct {
+    using #as base: Message;
+
+    handshake: u16 = 69;
+
+    serializer :: MessageSerializer.{
+        create = () -> *Message { return New(ClientConnectMessage); },
+        serialize = (stream: *Stream, message: *Message) -> bool {
+            m := cast(*ClientConnectMessage) message;
+            serialize_bits(stream, *m.handshake, 16);
+            return true;
+        }
+    };
+}
+
+ClientConnectResponseMessage :: struct {
+    using #as base: Message;
+
+    game_state_index: s16;
+    nr_of_players: s32;
+    players: [MAX_PLAYERS]Entity;
+
+    serializer :: MessageSerializer.{
+        create = () -> *Message { return New(ClientConnectResponseMessage); },
+        serialize = (stream: *Stream, message: *Message) -> bool {
+            m := cast(*ClientConnectResponseMessage) message;
+            serialize_bits(stream, *m.game_state_index, 16);
+            serialize_bits(stream, *m.nr_of_players, 32);
+            for 0..m.nr_of_players-1 {
+                player := *m.players[it];
+                serialize_bits(stream, *player.uuid, 64);
+                serialize_float(stream, *player.speed);
+                serialize_float(stream, *player.position.x);
+                serialize_float(stream, *player.position.y);
+            }
+            return true;
+        }
+    };
+}
+
+GameMessageType :: enum u16 {
+    PLAYER_MOVE;
+    NEW_PLAYER;
+    CLIENT_CONNECT;
+    CLIENT_CONNECT_RESPONSE;
+}
+
+GameMessageFactory: MessageFactory : MessageSerializer.[
+    PlayerMoveMessage.serializer,
+    NewPlayerMessage.serializer,
+    ClientConnectMessage.serializer,
+    ClientConnectResponseMessage.serializer,
 ];
+
+GameChannel :: enum u16 {
+    RELIABLE;
+    UNRELIABLE;
+}
 
 NetworkManager :: struct {
     apollo_time: Apollo_Time;
@@ -34,14 +112,48 @@ NetworkManager :: struct {
     client: *Client = null;
 }
 
+log_message_type :: (prefix: string, type: GameMessageType) {
+    if #complete type == {
+        case .PLAYER_MOVE;              log("% PLAYER_MOVE\n", prefix);
+        case .NEW_PLAYER;               log("% NEW_PLAYER\n", prefix);
+        case .CLIENT_CONNECT;           log("% CLIENT_CONNECT\n", prefix);
+        case .CLIENT_CONNECT_RESPONSE;  log("% CLIENT_CONNECT_RESPONSE\n", prefix);
+    }
+}
+
+make_server :: (using network_manager: *NetworkManager) {
+    apollo_time = seconds_to_apollo(100);
+    server_address = address_init_v4(SERVER_ADDRESS, SERVER_PORT);
+
+    server = New(Server);
+    server_init(server, private_key, server_address, config, GameMessageFactory, apollo_time);
+    server_start(server, MAX_CLIENTS);
+
+    log("server address is %\n", address_to_string(server_address,, temp));
+}
+
+make_client :: (using network_manager: *NetworkManager) {
+    apollo_time = seconds_to_apollo(100);
+    server_address = address_init_v4(SERVER_ADDRESS, SERVER_PORT);
+
+    client = New(Client);
+    client_id := random_get();
+    log("client_id: %\n", client_id);
+    client_address := address_init_v4("0.0.0.0");
+
+    client_init(client, client_address, config, GameMessageFactory, apollo_time);
+    client_insecure_connect(client, private_key, client_id, server_address);
+
+    log("client address is %\n", address_to_string(client.boundAddress,, temp));
+}
+
 make_network_manager :: (using network_manager: *NetworkManager) {
     apollo_time = seconds_to_apollo(100);
     server_address = address_init_v4(SERVER_ADDRESS, SERVER_PORT);
 
     #if SERVER {
         server = New(Server);
-        server.onClientConnected = on_client_connected_override;
-        server_init(server, private_key, server_address, config, TestMessageFactory, apollo_time);
+        server_init(server, private_key, server_address, config, GameMessageFactory, apollo_time);
         server_start(server, MAX_CLIENTS);
 
         log("server address is %\n", address_to_string(server_address,, temp));
@@ -52,7 +164,7 @@ make_network_manager :: (using network_manager: *NetworkManager) {
         client_id := random_get();
         client_address := address_init_v4("0.0.0.0");
 
-        client_init(client, client_address, config, TestMessageFactory, apollo_time);
+        client_init(client, client_address, config, GameMessageFactory, apollo_time);
         client_insecure_connect(client, private_key, client_id, server_address);
 
         log("client address is %\n", address_to_string(client.boundAddress,, temp));

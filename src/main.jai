@@ -5,84 +5,38 @@
 #import "Yojimbo"()(ENABLE_LOGGING=true);
 #import "IPAddress"()(ENABLE_LOGGING=true);
 #import "Serialize"()(ENABLE_LOGGING=true);
-#import "Reliable"()(ENABLE_LOGGING=true);
+#import "Reliable";
+
 #load "renderer.jai";
 #load "game.jai";
 #load "input.jai";
 #load "common.jai";
 #load "network.jai";
+#load "app.jai";
 
-FRAMETIME   :: 1.0 / 60.0;
+FRAMETIME   :: 1.0 / 10.0;
 SCREEN_SIZE :: Vector2i.{ 800, 600 };
 
 STATE_COUNT :: 256;
 GAME_STATES : [STATE_COUNT]GameState;
 INPUT_STATES: [STATE_COUNT]InputState;
 
-
-AppState :: struct {
-    clock: Clock;
-    render_state: *RenderState;
-
-    current: s16 = 0;
-    previous: s16 = 0;
-}
-
-init :: (args: []string) -> (AppState, bool) {
-    SDL_Init(SDL_INIT_EVERYTHING);
-
-    render_state, render_ok := make_render_state();
-    if !render_ok return .{}, false;
-
-    init_game_state(*GAME_STATES[0]);
-
-    return AppState.{ clock=clock_now(), render_state=render_state }, true;
-}
-
-quit :: (using state: *AppState, network_manager: *NetworkManager = null) {
-    if network_manager deinit(network_manager);
-
-    if render_state {
-        if render_state.window    SDL_DestroyWindow(render_state.window);
-        if render_state.renderer  SDL_DestroyRenderer(render_state.renderer);
-    }
-    SDL_Quit();
-    exit(0);
-}
-
-on_client_connected_override :: (server: *Server, clientIndex: int) {
-    log("on_client_connected_override w/ client '%'\n", clientIndex);
-}
-
-logger :: (message: string, data: *void, info: Log_Info) {
-    if !message
-        return;
-    if info.common_flags & .VERY_VERBOSE_ONLY && context.log_level < .VERY_VERBOSE
-        return;
-    if info.common_flags & .VERBOSE_ONLY && context.log_level < .VERBOSE
-        return;
-
-    to_standard_error := false;
-
-    if message[message.count-1] != #char "\n" {
-        write_strings(message, "\n", to_standard_error = to_standard_error);
-    } else {
-        write_string(message, to_standard_error = to_standard_error);
-    }
-}
-
 main :: () {
-    context.logger = logger;
-    context.log_level = .VERY_VERBOSE;
+    random_seed(cast,no_check(u64) to_milliseconds(current_time_consensus())); // used to randomize client id
 
-    app, ok := init(get_command_line_arguments());
-    if !ok quit(*app, null);
-    if !yojimbo_init() quit(*app, null);
+    #if CLIENT {
+        if !yojimbo_init() exit(0);
+    }
 
-    network_manager: NetworkManager;
-    make_network_manager(*network_manager);
+    app, ok := init_app(get_command_line_arguments());
+    if !ok
+        quit_app(*app);
 
-    accumulator: float64;
+    // @HACK: copy init state to all other states, so when client syncs to server the tiles are set correctly
+    for 1..STATE_COUNT-1 {
+        memcpy(*GAME_STATES[it], *GAME_STATES[0], size_of(GameState));
+    }
+
     event: SDL_Event;
     previous_input: InputState;
     accumulated_input: InputState;
@@ -98,42 +52,108 @@ main :: () {
         if accumulated_input.exit == true break;
 
         delta := clock_reset(*app.clock);
-        accumulator += delta;
-        num_ticks := cast(u8, floor(accumulator / FRAMETIME));
+        app.accumulator += delta;
+        num_ticks := cast(u8, floor(app.accumulator / FRAMETIME));
 
-        network_manager.apollo_time += to_apollo(delta);
+        #if CLIENT
+            app.network_manager.apollo_time += to_apollo(delta);
 
         if num_ticks > 0 {
-            if !network_manager_update(*network_manager, delta)
-                break;
+            #if CLIENT {
+                if !network_manager_update(app.network_manager, delta)
+                    break;
 
-            accumulator -= FRAMETIME * xx num_ticks;
+                {
+                    using app.network_manager;
+                    if client_is_connected(client) {
+                        message := client_receive_message(client, xx GameChannel.RELIABLE);
+                        while message != null {
+                            log_message_type("Got message", cast(GameMessageType) message.type);
+
+                            if cast(GameMessageType) message.type == {
+                                case .NEW_PLAYER; {
+                                    msg := cast(*NewPlayerMessage) message;
+                                    add_player(*GAME_STATES[msg.game_state_index], msg.uuid, msg.x, msg.y, msg.uuid == client.clientId);
+                                }
+
+                                case .CLIENT_CONNECT;
+
+                                case .CLIENT_CONNECT_RESPONSE; {
+                                    msg := cast(*ClientConnectResponseMessage) message;
+                                    // sync game state index here for now
+                                    app.current = msg.game_state_index;
+                                    app.previous = (app.current - 1 + STATE_COUNT) % STATE_COUNT;
+                                    {
+                                        using GAME_STATES[app.current];
+                                        nr_of_players = msg.nr_of_players;
+                                        memcpy(*players, *msg.players, MAX_PLAYERS * size_of(Entity));
+                                    }
+                                }
+                            }
+                            client_release_message(client, message);
+                            message = client_receive_message(client, xx GameChannel.RELIABLE);
+                        }
+
+                        if accumulated_input.space {
+                            message = cast(*ClientConnectMessage) client_create_message(client, xx GameMessageType.CLIENT_CONNECT);
+                            client_send_message(client, xx GameChannel.RELIABLE, message);
+                        }
+                    }
+                }
+            }
+
+            app.accumulator -= FRAMETIME * xx num_ticks;
             for 0..num_ticks-1 {
                 previous := app.current;
                 app.current = (app.current + 1) % STATE_COUNT;
+                log("app.current: %\n", app.current);
 
+                memcpy(*GAME_STATES[app.current], *GAME_STATES[previous], size_of(GameState));
+                memcpy(*INPUT_STATES[app.current], *accumulated_input, size_of(InputState));
                 game_state = *GAME_STATES[app.current];
                 input_state = *INPUT_STATES[app.current];
-
-                memcpy(game_state, *GAME_STATES[previous], size_of(GameState));
-                memcpy(input_state, *accumulated_input, size_of(InputState));
 
                 SDL_GetMouseState(xx *input_state.mouse_position.x, xx *input_state.mouse_position.y);
 
                 simulate(game_state, input_state, FRAMETIME);
 
                 // reset transient inputs
+                accumulated_input.space = false;
                 accumulated_input.LMB_pressed = false;
                 accumulated_input.RMB_pressed = false;
                 accumulated_input.scroll_delta = 0;
             }
             memcpy(*previous_input, *accumulated_input, size_of(InputState));
             app.previous = (app.current - num_ticks + STATE_COUNT) % STATE_COUNT;
+
+            #if CLIENT {
+                {
+                    using app.network_manager;
+                    if client_is_connected(client) {
+                        using GAME_STATES[app.current];
+                        if client_index != -1 {
+                            for players[client_index].actions {
+                                if it.action == {
+                                    case .MOVE; {
+                                        message := cast(*PlayerMoveMessage) client_create_message(client, xx GameMessageType.PLAYER_MOVE);
+                                        message.x = it.x;
+                                        message.y = it.y;
+                                        message.game_state_index = app.current;
+                                        client_send_message(client, xx GameChannel.RELIABLE, message);
+                                    }
+                                }
+                            }
+                            array_reset(*players[client_index].actions);
+                        }
+                    }
+
+                }
+            }
         }
 
-        alpha := cast(float32) clamp(accumulator / FRAMETIME, 0.0, 1.0);
+        alpha := cast(float32) clamp(app.accumulator / FRAMETIME, 0.0, 1.0);
         render(*GAME_STATES[app.current], *GAME_STATES[app.previous], app.render_state, alpha);
     }
 
-    quit(*app, *network_manager);
+    quit_app(*app);
 }

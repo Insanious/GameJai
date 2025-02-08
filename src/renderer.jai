@@ -86,11 +86,15 @@ render :: (using current: *GameState, previous: *GameState, render_state: *Rende
 
     render_tiles(lerped_view, tiles, render_state);
 
-    texture, ok := table_find(*render_state.textures, player.texture_id);
-    assert(ok, "couldn't find texture");
-    offset := entity_feet_offset(player);
-    lerped := lerp_vec(previous.player.position - offset, player.position - offset, alpha);
-    render_rect(lerped_view, render_state, player.texture_rect, lerped, texture, true);
+    for 0..nr_of_players-1 {
+        player := players[it];
+        previous_player := previous.players[it];
+        texture, ok := table_find(*render_state.textures, player.texture_id);
+        assert(ok, "couldn't find texture");
+        offset := entity_feet_offset(player);
+        lerped := lerp_vec(previous_player.position - offset, player.position - offset, alpha);
+        render_rect(lerped_view, render_state, player.texture_rect, lerped, texture, true);
+    }
 
     SDL_RenderPresent(render_state.renderer);
 }

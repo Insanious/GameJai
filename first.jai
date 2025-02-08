@@ -45,7 +45,7 @@ OUTPUT_CLIENT_NAME      := "client";
         set_optimization(*options, .DEBUG);
         set_build_options(options, w);
 
-        add_build_file("src/main.jai", w);
+        add_build_file("src/main-server.jai", w);
         add_build_string(tprint("DEBUG :: %;", build_debug), w);
         add_build_string("SERVER :: true;", w);
         add_build_string("CLIENT :: false;", w);

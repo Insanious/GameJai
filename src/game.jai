@@ -12,9 +12,12 @@ View :: struct {
     zoom: float32 = 1.0;
 }
 
+MAX_PLAYERS :: 4;
 GameState :: struct {
-    player: Entity;
+    players: [MAX_PLAYERS]Entity;
+    nr_of_players: s32 = 0;
     tiles: [TILES_Y][TILES_X] Tile;
+    client_index: s32 = -1;
 
     view: View;
 }
@@ -34,12 +37,33 @@ ENTITY_PATH_COUNT :: 64;
 Entity :: struct {
     using sprite: Sprite;
     sprite.texture_id = "resources/mage.bmp";
+    sprite.texture_rect = SDL_Rect.{ x=0, y=0, w=32, h=48 };
 
     state: ENTIY_STATE = .IDLE;
     speed: float32 = 160;
 
     path: [ENTITY_PATH_COUNT]Vector2;
     current_path_index: s16;
+    actions: [..]ActionResult;
+
+    uuid: u64 = 0;
+    is_client := false;
+}
+
+ACTION :: enum u16 {
+    MOVE;
+}
+
+ActionRequest :: struct {
+    action: ACTION;
+    x: u16;
+    y: u16;
+}
+
+ActionResult :: struct {
+    action: ACTION;
+    x: u16;
+    y: u16;
 }
 
 Tile :: struct {
@@ -58,19 +82,56 @@ temp_get_rect_points :: (start: Vector2i, end: Vector2i) -> []Vector2i {
 }
 
 init_game_state :: (game_state: *GameState) {
-    game_state.player = Entity.{ texture_rect=.{ x=0, y=0, w=32, h=48 }, position=map_to_screen(1, 1) };
-
     for tiles, y: game_state.tiles {
         for * tile, x: tiles {
             tile.texture_rect = .{ 0, 0, TILE_RECT_SIZE.x, TILE_RECT_SIZE.y };
             tile.position = map_to_screen(x, y);
-            if x == 2 && y == 1  game_state.tiles[y][x].is_walkable = false;
-            if x == 1 && y == 2  game_state.tiles[y][x].is_walkable = false;
         }
     }
+}
 
-    for temp_get_rect_points(.{4, 4}, .{5, 5})
-        game_state.tiles[it.y][it.x].is_walkable = false;
+add_player :: (using game_state: *GameState, uuid: u64, x: u16, y: u16, is_client: bool) {
+    log("is_client: %\n", is_client);
+    players[nr_of_players] = Entity.{ position=map_to_screen(xx x, xx y), uuid=uuid, is_client=is_client };
+    players[nr_of_players].actions.allocator = temp;
+
+    if is_client game_state.client_index = nr_of_players;
+    nr_of_players += 1;
+}
+
+perform_action_request :: (using game_state: *GameState, player: *Entity, request: ActionRequest) {
+    if request.action == {
+        case .MOVE; {
+            player_grid := screen_to_map(player.position);
+            destination := Vector2i.{ x=request.x, y=request.y };
+            if !in_bounds(player_grid) || !in_bounds(destination) {
+                log("tried pathfinding out of bounds\n");
+            } else {
+                paths: []Vector2i;
+                new_context := context;
+                new_context.allocator = temp;
+                push_context new_context { paths = jump_point_search(player_grid, destination, tiles); }
+
+                if paths.count {
+                    player.state = .RUNNING;
+                    for tiles, y: game_state.tiles
+                        for * tile, x: tiles
+                            tile.is_path = false;
+
+                    if paths.count >= ENTITY_PATH_COUNT { // truncate if too many paths
+                        diff := paths.count - ENTITY_PATH_COUNT;
+                        paths.data, paths.count += diff, -diff;
+                    }
+                    player.current_path_index = xx(paths.count-1);
+
+                    for paths {
+                        player.path[it_index] = map_to_screen(it);
+                        tiles[it.y][it.x].is_path = true; // TODO: should prob not be here
+                    }
+                }
+            }
+        }
+    }
 }
 
 simulate :: (using game_state: *GameState, input_state: *InputState, dt: float32) {
@@ -86,43 +147,50 @@ simulate :: (using game_state: *GameState, input_state: *InputState, dt: float32
         tiles[mouse_grid.y][mouse_grid.x].is_hovered = true;
 
     if input_state.RMB_pressed {
-        player_grid := screen_to_map(player.position);
+        if client_index != -1 {
+            player := *players[client_index];
+            player_grid := screen_to_map(player.position);
 
-        if !in_bounds(player_grid) || !in_bounds(mouse_grid) {
-            log("tried pathfinding out of bounds\n");
-        } else {
-            paths: []Vector2i;
-            new_context := context;
-            new_context.allocator = temp;
-            push_context new_context { paths = jump_point_search(player_grid, mouse_grid, tiles); }
+            if !in_bounds(player_grid) || !in_bounds(mouse_grid) {
+                log("tried pathfinding out of bounds\n");
+            } else {
+                array_add(*player.actions, ActionResult.{ action=.MOVE, x=xx mouse_grid.x, y=xx mouse_grid.y });
+                paths: []Vector2i;
+                new_context := context;
+                new_context.allocator = temp;
+                push_context new_context { paths = jump_point_search(player_grid, mouse_grid, tiles); }
 
-            if paths.count {
-                player.state = .RUNNING;
-                for tiles, y: game_state.tiles
-                    for * tile, x: tiles
-                        tile.is_path = false;
+                if paths.count {
+                    player.state = .RUNNING;
+                    for tiles, y: game_state.tiles
+                        for * tile, x: tiles
+                            tile.is_path = false;
 
-                if paths.count >= ENTITY_PATH_COUNT { // truncate if too many paths
-                    diff := paths.count - ENTITY_PATH_COUNT;
-                    paths.data, paths.count += diff, -diff;
-                }
-                player.current_path_index = xx(paths.count-1);
+                    if paths.count >= ENTITY_PATH_COUNT { // truncate if too many paths
+                        diff := paths.count - ENTITY_PATH_COUNT;
+                        paths.data, paths.count += diff, -diff;
+                    }
+                    player.current_path_index = xx(paths.count-1);
 
-                for paths {
-                    player.path[it_index] = map_to_screen(it);
-                    tiles[it.y][it.x].is_path = true;
+                    for paths {
+                        player.path[it_index] = map_to_screen(it);
+                        tiles[it.y][it.x].is_path = true;
+                    }
                 }
             }
         }
     }
 
     {
-        using player;
-        if state == .RUNNING {
-            if current_path_index >= 0 {
-                if entity_move_to_target(*player, path[current_path_index]) {
-                    current_path_index -= 1;
-                    if current_path_index < 0 then state = .IDLE;
+        for 0..nr_of_players-1 {
+            player := *players[it];
+            using player;
+            if state == .RUNNING {
+                if current_path_index >= 0 {
+                    if entity_move_to_target(player, path[current_path_index]) {
+                        current_path_index -= 1;
+                        if current_path_index < 0 then state = .IDLE;
+                    }
                 }
             }
         }
