@@ -6,8 +6,6 @@ InputState :: struct {
     LMB, LMB_pressed: bool = false;
     RMB, RMB_pressed: bool = false;
     space: bool = false;
-
-    new_player: bool = false;
 }
 
 input :: (using current: *InputState, previous: *InputState, event: *SDL_Event) {

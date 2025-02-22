@@ -91,8 +91,16 @@ render :: (using current: *GameState, previous: *GameState, render_state: *Rende
         previous_player := previous.players[it];
         texture, ok := table_find(*render_state.textures, player.texture_id);
         assert(ok, "couldn't find texture");
+
         offset := entity_feet_offset(player);
-        lerped := lerp_vec(previous_player.position - offset, player.position - offset, alpha);
+        position := player.position;
+        previous_position := previous_player.position;
+        if previous_player.is_interpolating {
+            position = player.interpolated_position;
+            previous_position = previous_player.interpolated_position;
+        }
+
+        lerped := lerp_vec(previous_position - offset, position - offset, alpha);
         render_rect(lerped_view, render_state, player.texture_rect, lerped, texture, true);
     }
 

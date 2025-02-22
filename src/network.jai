@@ -3,12 +3,58 @@ SERVER_PORT         :: 60000;
 WAIT_FOR_PACKETS_MS :: 16;
 MAX_CLIENTS         :: 8;
 
-PlayerMoveMessage :: struct {
+PlayerMoveResponseMessage :: struct {
     using #as base: Message;
+
+    game_state_index: s16;
+    uuid: u64;
 
     x: u16;
     y: u16;
+    count: s64;
+    path: []Vector2i;
+
+    serializer :: MessageSerializer.{
+        create = () -> *Message { return New(PlayerMoveResponseMessage); },
+        serialize = (stream: *Stream, message: *Message) -> bool {
+            m := cast(*PlayerMoveResponseMessage) message;
+            serialize_bits(stream, *m.game_state_index, 16);
+            serialize_bits(stream, *m.uuid, 64);
+            serialize_bits(stream, *m.x, 16);
+            serialize_bits(stream, *m.y, 16);
+
+            serialize_bits(stream, *m.count, 16);
+            x, y: s32;
+            if stream.isReading m.path = NewArray(m.count, Vector2i, initialized=false);
+            for 0..m.count-1 {
+                if stream.isWriting {
+                    x, y = m.path[it].x, m.path[it].y;
+                }
+                if x > TILES_X || y > TILES_Y {
+                    log("x, y: %, %\n", x, y);
+                    log("m.path: %\n", m.path);
+                }
+
+                serialize_int(stream, *x, 0, TILES_X);
+                serialize_int(stream, *y, 0, TILES_Y);
+
+                if stream.isReading {
+                    m.path[it] = .{x, y};
+                }
+            }
+
+            return true;
+        }
+    };
+}
+
+PlayerMoveMessage :: struct {
+    using #as base: Message;
+
     game_state_index: s16;
+
+    x: u16;
+    y: u16;
 
     serializer :: MessageSerializer.{
         create = () -> *Message { return New(PlayerMoveMessage); },
@@ -25,10 +71,11 @@ PlayerMoveMessage :: struct {
 NewPlayerMessage :: struct {
     using #as base: Message;
 
+    game_state_index: s16;
     uuid: u64;
+
     x: u16;
     y: u16;
-    game_state_index: s16;
 
     serializer :: MessageSerializer.{
         create = () -> *Message { return New(NewPlayerMessage); },
@@ -62,6 +109,7 @@ ClientConnectResponseMessage :: struct {
     using #as base: Message;
 
     game_state_index: s16;
+
     nr_of_players: s32;
     players: [MAX_PLAYERS]Entity;
 
@@ -84,6 +132,7 @@ ClientConnectResponseMessage :: struct {
 }
 
 GameMessageType :: enum u16 {
+    PLAYER_MOVE_RESPONSE;
     PLAYER_MOVE;
     NEW_PLAYER;
     CLIENT_CONNECT;
@@ -91,6 +140,7 @@ GameMessageType :: enum u16 {
 }
 
 GameMessageFactory: MessageFactory : MessageSerializer.[
+    PlayerMoveResponseMessage.serializer,
     PlayerMoveMessage.serializer,
     NewPlayerMessage.serializer,
     ClientConnectMessage.serializer,
@@ -114,6 +164,7 @@ NetworkManager :: struct {
 
 log_message_type :: (prefix: string, type: GameMessageType) {
     if #complete type == {
+        case .PLAYER_MOVE_RESPONSE;     log("% PLAYER_MOVE_RESPONSE\n", prefix);
         case .PLAYER_MOVE;              log("% PLAYER_MOVE\n", prefix);
         case .NEW_PLAYER;               log("% NEW_PLAYER\n", prefix);
         case .CLIENT_CONNECT;           log("% CLIENT_CONNECT\n", prefix);

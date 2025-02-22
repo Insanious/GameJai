@@ -11,27 +11,7 @@
 #load "input.jai";
 #load "common.jai";
 #load "network.jai";
-#load "app.jai";
-
-FRAMETIME   :: 1.0 / 10.0;
-SCREEN_SIZE :: Vector2i.{ 800, 600 };
-
-STATE_COUNT :: 256;
-GAME_STATES : [STATE_COUNT]GameState;
-INPUT_STATES: [STATE_COUNT]InputState;
-
-fast_forward_state :: (start: s16, end: s16) {
-    ticks := (end - start + STATE_COUNT) % STATE_COUNT;
-    current := start;
-    for 0..ticks-1 {
-        simulate(*GAME_STATES[current], *INPUT_STATES[current], FRAMETIME);
-
-        next := (current + 1) % STATE_COUNT;
-        memcpy(*GAME_STATES[next], *GAME_STATES[current], size_of(GameState));
-
-        current = next;
-    }
-}
+#load "infrastructure.jai";
 
 main :: () {
     if !yojimbo_init() exit(0);
@@ -59,8 +39,7 @@ main :: () {
         num_ticks := cast(u8, floor(app.accumulator / FRAMETIME));
 
         if num_ticks > 0 {
-            if !network_manager_update(app.network_manager, delta)
-                break;
+            app.accumulator -= FRAMETIME * xx num_ticks;
 
             {
                 using app.network_manager;
@@ -74,16 +53,28 @@ main :: () {
                                 case .PLAYER_MOVE; {
                                     msg := cast(*PlayerMoveMessage) message;
                                     uuid := server_get_client_id(server, client_id);
-                                    player: *Entity = null;
-                                    idx := msg.game_state_index;
-                                    for 0..GAME_STATES[idx].nr_of_players {
-                                        if GAME_STATES[idx].players[it].uuid == uuid {
-                                            player = *GAME_STATES[idx].players[it];
-                                        }
+                                    request := ActionRequest.{ action=.MOVE, x=msg.x, y=msg.y, uuid=uuid };
+                                    result, ok := perform_clean_action_request(msg.game_state_index, request);
+                                    if !ok break;
+
+                                    for c_id: 0..MAX_CLIENTS-1 {
+                                        if !server_is_client_connected(server, c_id)
+                                            continue;
+
+                                        response := cast(*PlayerMoveResponseMessage) server_create_message(server, client_id, xx GameMessageType.PLAYER_MOVE_RESPONSE);
+                                        response.game_state_index = msg.game_state_index;
+                                        response.uuid = uuid;
+                                        response.x = msg.x; // send back original msg coords
+                                        response.y = msg.y; // send back original msg coords
+                                        response.count = result.path.count;
+                                        response.path = NewArray(result.path.count, Vector2i, initialized=false);
+                                        for 0..result.path.count-1
+                                            response.path[it] = result.path[it];
+
+                                        server_send_message(server, c_id, xx GameChannel.RELIABLE, response);
                                     }
-                                    request := ActionRequest.{ action=.MOVE, x=msg.x, y=msg.y };
-                                    perform_action_request(*GAME_STATES[idx], player, request);
-                                    fast_forward_state(msg.game_state_index, app.current);
+
+                                    fast_forward_state_with_request(msg.game_state_index, next_state_index(app.current), request);
                                 }
 
                                 case .CLIENT_CONNECT; {
@@ -96,7 +87,6 @@ main :: () {
                                     response.game_state_index = app.current;
                                     server_send_message(server, client_id, xx GameChannel.RELIABLE, response);
 
-
                                     // should be broadcast to all connected clients
                                     uuid := server_get_client_id(server, client_id);
                                     x: u16 = xx(random_get() % TILES_X);
@@ -104,7 +94,10 @@ main :: () {
                                     add_player(*GAME_STATES[app.current], uuid, x, y, false);
                                     for client_id: 0..MAX_CLIENTS-1 {
                                         message := cast(*NewPlayerMessage) server_create_message(server, client_id, xx GameMessageType.NEW_PLAYER);
-                                        message.uuid, message.x, message.y, message.game_state_index = uuid, x, y, app.current;
+                                        message.game_state_index = app.current;
+                                        message.uuid = uuid;
+                                        message.x = x;
+                                        message.y = y;
                                         server_send_message(server, client_id, xx GameChannel.RELIABLE, message);
                                     }
                                 }
@@ -116,20 +109,25 @@ main :: () {
                 }
             }
 
-            app.accumulator -= FRAMETIME * xx num_ticks;
+            app.previous = prev_state_index(app.current, num_ticks);
             for 0..num_ticks-1 {
                 previous := app.current;
-                app.current = (app.current + 1) % STATE_COUNT;
-                log("app.current: %\n", app.current);
+                app.current = next_state_index(app.current);
+                game_state = *GAME_STATES[app.current];
+                memcpy(game_state, *GAME_STATES[previous], size_of(GameState));
+                game_state.nr_of_actions = 0;
 
-                memcpy(*GAME_STATES[app.current], *GAME_STATES[previous], size_of(GameState));
-                simulate(*GAME_STATES[app.current], *INPUT_STATES[app.current], FRAMETIME);
-            }
-            app.previous = (app.current - num_ticks + STATE_COUNT) % STATE_COUNT;
+                log("simulating: %\n", app.current);
+                simulate(game_state, *INPUT_STATES[app.current], FRAMETIME);
+           }
+           app.previous = prev_state_index(app.current, num_ticks);
         }
 
         alpha := cast(float32) clamp(app.accumulator / FRAMETIME, 0.0, 1.0);
         render(*GAME_STATES[app.current], *GAME_STATES[app.previous], app.render_state, alpha);
+
+        if !network_manager_update(app.network_manager, delta)
+            break;
     }
 
     quit_app(*app);
