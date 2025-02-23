@@ -1,9 +1,10 @@
+#load "view.jai";
+
 FRAMETIME   :: 1.0 / 60.0;
 SCREEN_SIZE :: Vector2i.{ 800, 600 };
 
 STATE_COUNT :: 256;
 GAME_STATES : [STATE_COUNT]GameState;
-INPUT_STATES: [STATE_COUNT]InputState;
 
 next_state_index :: (index: s16, increment: s16 = 1) -> s16 { return (index + increment) % STATE_COUNT; }
 prev_state_index :: (index: s16, increment: s16 = 1) -> s16 { return (index - increment + STATE_COUNT) % STATE_COUNT; }
@@ -16,10 +17,10 @@ fast_forward_state :: (start: s16, end: s16) {
     temp_nr_of_actions: s32 = 0;
     current := start;
     for 0..ticks-1 {
-        simulate(*GAME_STATES[current], *INPUT_STATES[current], FRAMETIME);
+        simulate(*GAME_STATES[current], FRAMETIME);
         next := next_state_index(current);
 
-        copy_game_state_keeping_actions(*GAME_STATES[next], *GAME_STATES[current]);
+        copy_game_state(*GAME_STATES[next], *GAME_STATES[current]);
         current = next;
     }
 }
@@ -41,6 +42,7 @@ AppState :: struct {
     clock: Clock;
     accumulator: float64 = 0;
     render_state: *RenderState = null;
+    view: View;
     network_manager: *NetworkManager = null;
 
     current: s16 = 0;

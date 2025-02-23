@@ -3,7 +3,6 @@ InputState :: struct {
     mouse_position: Vector2i;
     scroll_delta: s8 = 0;
     left, right, up, down: bool = false;
-    LMB, LMB_pressed: bool = false;
     RMB, RMB_pressed: bool = false;
     space: bool = false;
 }
@@ -37,14 +36,12 @@ input :: (using current: *InputState, previous: *InputState, event: *SDL_Event) 
         case SDL_MOUSEBUTTONDOWN;
         {
             if event.button.button == {
-                case SDL_BUTTON_LEFT;   LMB, LMB_pressed = true, !previous.LMB_pressed;
                 case SDL_BUTTON_RIGHT;  RMB, RMB_pressed = true, !previous.RMB_pressed;
             }
         }
         case SDL_MOUSEBUTTONUP;
         {
             if event.button.button == {
-                case SDL_BUTTON_LEFT;   LMB = false;
                 case SDL_BUTTON_RIGHT;  RMB = false;
             }
         }

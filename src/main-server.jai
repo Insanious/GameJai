@@ -118,13 +118,19 @@ main :: () {
                 game_state.nr_of_actions = 0;
 
                 log("simulating: %\n", app.current);
-                simulate(game_state, *INPUT_STATES[app.current], FRAMETIME);
+                simulate(game_state, FRAMETIME);
            }
            app.previous = prev_state_index(app.current, num_ticks);
         }
 
         alpha := cast(float32) clamp(app.accumulator / FRAMETIME, 0.0, 1.0);
-        render(*GAME_STATES[app.current], *GAME_STATES[app.previous], app.render_state, alpha);
+        render(
+            *GAME_STATES[app.current],
+            *GAME_STATES[app.previous],
+            app.render_state,
+            app.view,
+            alpha
+        );
 
         if !network_manager_update(app.network_manager, delta)
             break;

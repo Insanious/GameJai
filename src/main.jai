@@ -14,18 +14,34 @@
 #load "network.jai";
 #load "infrastructure.jai";
 
+send_actions_to_server :: (app: *AppState, actions: []ActionRequest) {
+    using app.network_manager;
+    for actions {
+        if it.action == {
+            case .MOVE; {
+                message := cast(*PlayerMoveMessage) client_create_message(client, xx GameMessageType.PLAYER_MOVE);
+                message.game_state_index = app.current;
+                message.x = it.x;
+                message.y = it.y;
+                client_send_message(client, xx GameChannel.RELIABLE, message);
+            }
+        }
+    }
+}
+
 convert_input_to_actions :: (input_state: *InputState, game_state: *GameState) -> []ActionRequest {
     actions: [..]ActionRequest;
 
     if input_state.RMB_pressed {
         assert(game_state.player_index != -1, "Tried creating action when player_index == -1");
 
-        mouse_pos: = mouse_to_screen(game_state, input_state) - tile_size_offset();
+        mouse_pos: = mouse_to_screen(game_state) - tile_size_offset();
         mouse_grid := screen_to_map(mouse_pos);
         if in_bounds(mouse_grid) {
             player := game_state.players[game_state.player_index];
             array_add(*actions, ActionRequest.{ action=.MOVE, x=xx mouse_grid.x, y=xx mouse_grid.y, uuid=player.uuid });
         }
+        input_state.RMB_pressed = false;
     }
 
     return actions;
@@ -64,6 +80,9 @@ main :: () {
         delta := clock_reset(*app.clock);
         app.accumulator += delta;
         num_ticks := cast(u8, floor(app.accumulator / FRAMETIME));
+
+        update_view(*app.view, accumulated_input, delta);
+        accumulated_input.scroll_delta = 0;
 
         #if CLIENT
             app.network_manager.apollo_time += to_apollo(delta);
@@ -104,7 +123,7 @@ main :: () {
                                     msg := cast(*PlayerMoveResponseMessage) message;
 
                                     game_state = *GAME_STATES[msg.game_state_index];
-                                    copy_game_state_keeping_actions(game_state, *GAME_STATES[prev_state_index(msg.game_state_index)]);
+                                    copy_game_state(game_state, *GAME_STATES[prev_state_index(msg.game_state_index)]);
 
                                     if client.clientId == msg.uuid
                                         remove_action(game_state, ActionRequest.{ action=.MOVE, uuid=msg.uuid, x=msg.x, y=msg.y });
@@ -133,6 +152,7 @@ main :: () {
                         if accumulated_input.space {
                             message = cast(*ClientConnectMessage) client_create_message(client, xx GameMessageType.CLIENT_CONNECT);
                             client_send_message(client, xx GameChannel.RELIABLE, message);
+                            accumulated_input.space = false;
                         }
                     }
                 }
@@ -147,47 +167,33 @@ main :: () {
                 app.current = next_state_index(app.current);
                 game_state = *GAME_STATES[app.current];
 
-                memcpy(game_state, *GAME_STATES[previous], size_of(GameState));
-                memcpy(*INPUT_STATES[app.current], *accumulated_input, size_of(InputState));
+                copy_game_state(game_state, *GAME_STATES[previous]);
+                game_state.view = app.view;
+                game_state.input_state = accumulated_input;
 
                 game_state.nr_of_actions = 0;
                 for game_actions
                     add_action(game_state, it);
 
                 log("simulating: %\n", app.current);
-                simulate(game_state, *INPUT_STATES[app.current], FRAMETIME);
-
-                // reset transient inputs
-                accumulated_input.space = false;
-                accumulated_input.LMB_pressed = false;
-                accumulated_input.RMB_pressed = false;
-                accumulated_input.scroll_delta = 0;
+                simulate(game_state, FRAMETIME);
             }
             app.previous = prev_state_index(app.current, num_ticks);
 
             memcpy(*previous_input, *accumulated_input, size_of(InputState));
 
             #if CLIENT {
-                {
-                    using app.network_manager;
-                    if client_is_connected(client) {
-                        for game_actions {
-                            if it.action == {
-                                case .MOVE; {
-                                    message := cast(*PlayerMoveMessage) client_create_message(client, xx GameMessageType.PLAYER_MOVE);
-                                    message.game_state_index = app.current;
-                                    message.x = it.x;
-                                    message.y = it.y;
-                                    client_send_message(client, xx GameChannel.RELIABLE, message);
-                                }
-                            }
-                        }
-                    }
-                }
+                send_actions_to_server(*app, game_actions);
             }
         }
         alpha := cast(float32) clamp(app.accumulator / FRAMETIME, 0.0, 1.0);
-        render(*GAME_STATES[app.current], *GAME_STATES[app.previous], app.render_state, alpha);
+        render(
+            *GAME_STATES[app.current],
+            *GAME_STATES[app.previous],
+            app.render_state,
+            app.view,
+            alpha
+        );
     }
 
     quit_app(*app);

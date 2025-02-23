@@ -1,4 +1,3 @@
-#import "Sloppy_Math";
 #load "pathfinding.jai";
 
 TILES_Y ::              16;
@@ -7,11 +6,6 @@ TILE_SIZE ::            Vector2.{ 32, 16 };
 HALF_TILE_SIZE ::       Vector2.{ 16, 8 };
 TILE_RECT_SIZE ::       SDL_Point.{ 32, 32 };
 HALF_TILE_RECT_SIZE ::  SDL_Point.{ 16, 16 };
-
-View :: struct {
-    position: Vector2;
-    zoom: float32 = 1.0;
-}
 
 MAX_PLAYERS :: 4;
 MAX_ACTIONS :: 16;
@@ -25,6 +19,7 @@ GameState :: struct {
     actions: [MAX_ACTIONS]ActionRequest;
     nr_of_actions: s32 = 0;
 
+    input_state: InputState;
     view: View;
 }
 
@@ -88,18 +83,14 @@ Tile :: struct {
     is_path:        bool = false;
 }
 
-copy_game_state_keeping_actions :: (dst: *GameState, src: *GameState) {
-    actions: [..]ActionRequest;
-    nr_of_actions := dst.nr_of_actions;
+copy_game_state :: (dst: *GameState, src: *GameState) {
+    memcpy(*dst.players, *src.players, MAX_PLAYERS * size_of(Entity));
+    dst.nr_of_players = src.nr_of_players;
+    dst.player_index = src.player_index;
 
-    for 0..nr_of_actions-1
-        array_add(*actions, dst.actions[it]);
-
-    memcpy(dst, src, size_of(GameState));
-
-    dst.nr_of_actions = nr_of_actions;
-    for 0..nr_of_actions-1
-        dst.actions[it] = actions[it];
+    for y: 0..TILES_Y-1
+        for x: 0..TILES_X-1
+            dst.tiles[y][x] = src.tiles[y][x];
 }
 
 temp_get_rect_points :: (start: Vector2i, end: Vector2i) -> []Vector2i {
@@ -197,8 +188,14 @@ perform_action_request :: (using game_state: *GameState, request: ActionRequest)
         }
 
         case .MOVE_CORRECTION; {
-            for request.path
+            for tiles, y: game_state.tiles
+                for * tile, x: tiles
+                    tile.is_path = false;
+
+            for request.path {
                 player.path[it_index] = it;
+                tiles[it.y][it.x].is_path = true;
+            }
             player.current_path_index = xx(request.path.count-1);
 
             if player.current_path_index >= 0
@@ -211,14 +208,12 @@ perform_action_request :: (using game_state: *GameState, request: ActionRequest)
     return ActionResult.{}, false;
 }
 
-simulate :: (using game_state: *GameState, input_state: *InputState, dt: float32) {
-    update_view(*game_state.view, input_state, dt);
-
+simulate :: (using game_state: *GameState, dt: float32) {
     for tiles, y: game_state.tiles
         for * tile, x: tiles
             tile.is_hovered = false;
 
-    mouse_pos: = mouse_to_screen(game_state, input_state) - tile_size_offset();
+    mouse_pos: = mouse_to_screen(game_state) - tile_size_offset();
     mouse_grid := screen_to_map(mouse_pos);
     if in_bounds(mouse_grid)
         tiles[mouse_grid.y][mouse_grid.x].is_hovered = true;
@@ -238,32 +233,16 @@ simulate :: (using game_state: *GameState, input_state: *InputState, dt: float32
                 }
             }
         }
+
         if player.is_interpolating {
-            if values_are_close(player.interpolated_position, player.position, 2) {
+            if length_squared(player.interpolated_position - player.position) <= 4 { // @HARDCODED
                 player.is_interpolating = false;
             } else {
                 dist := player.position - player.interpolated_position;
-                dist /= 4; // @HACK: good-enough, catches up in 4 simulations
+                dist /= 3; // @HACK: good enough though
                 player.interpolated_position += dist;
             }
         }
-    }
-}
-
-update_view :: (view: *View, input_state: *InputState, dt: float32) {
-    pan_dir := Vector2.{ 0, 0 };
-    pan_speed := 300.0;
-    if input_state.left         pan_dir.x += -1;
-    if input_state.right        pan_dir.x +=  1;
-    if input_state.up           pan_dir.y += -1;
-    if input_state.down         pan_dir.y +=  1;
-    if pan_dir.x || pan_dir.y
-        view.position += pan_dir * pan_speed * dt;
-
-    if input_state.scroll_delta != 0 {
-        view.zoom *= 1.0 + (xx input_state.scroll_delta / 10.0); // multiply by 1.1 or 0.9
-        if view.zoom <= 0.6 then view.zoom = 0.6;
-        if view.zoom >= 4 then view.zoom = 4;
     }
 }
 
@@ -301,7 +280,7 @@ screen_to_map :: (using vector: Vector2) -> Vector2i {
     };
 }
 
-mouse_to_screen :: (using game_state: *GameState, input_state: *InputState) -> Vector2 {
+mouse_to_screen :: (using game_state: *GameState) -> Vector2 {
     offset := input_state.mouse_position - (SCREEN_SIZE / 2);
     return Vector2.{
         offset.x / game_state.view.zoom + game_state.view.position.x,

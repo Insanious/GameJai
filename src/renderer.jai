@@ -78,16 +78,14 @@ render_tiles :: (view: View, tiles: [TILES_Y][TILES_X] Tile, render_state: *Rend
     }
 }
 
-render :: (using current: *GameState, previous: *GameState, render_state: *RenderState, alpha: float32) {
+render :: (current: *GameState, previous: *GameState, render_state: *RenderState, view: View, alpha: float32) {
     SDL_SetRenderDrawColor(render_state.renderer, 100, 100, 100, 1);
     SDL_RenderClear(render_state.renderer);
 
-    lerped_view := View.{ lerp_vec(previous.view.position, view.position, alpha), lerp(previous.view.zoom, view.zoom, alpha) };
+    render_tiles(view, current.tiles, render_state);
 
-    render_tiles(lerped_view, tiles, render_state);
-
-    for 0..nr_of_players-1 {
-        player := players[it];
+    for 0..current.nr_of_players-1 {
+        player := current.players[it];
         previous_player := previous.players[it];
         texture, ok := table_find(*render_state.textures, player.texture_id);
         assert(ok, "couldn't find texture");
@@ -101,7 +99,7 @@ render :: (using current: *GameState, previous: *GameState, render_state: *Rende
         }
 
         lerped := lerp_vec(previous_position - offset, position - offset, alpha);
-        render_rect(lerped_view, render_state, player.texture_rect, lerped, texture, true);
+        render_rect(view, render_state, player.texture_rect, lerped, texture, true);
     }
 
     SDL_RenderPresent(render_state.renderer);
