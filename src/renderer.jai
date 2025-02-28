@@ -86,7 +86,11 @@ render :: (current: *GameState, previous: *GameState, render_state: *RenderState
 
     for 0..current.nr_of_players-1 {
         player := current.players[it];
+
         previous_player := previous.players[it];
+        if it >= previous.nr_of_players // don't interpolate
+            previous_player = current.players[it];
+
         texture, ok := table_find(*render_state.textures, player.texture_id);
         assert(ok, "couldn't find texture");
 

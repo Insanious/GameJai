@@ -1,6 +1,6 @@
 #load "view.jai";
 
-FRAMETIME   :: 1.0 / 60.0;
+FRAMETIME   :: 1.0 / 10.0;
 SCREEN_SIZE :: Vector2i.{ 800, 600 };
 
 STATE_COUNT :: 256;

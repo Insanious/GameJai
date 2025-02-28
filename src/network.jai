@@ -3,58 +3,53 @@ SERVER_PORT         :: 60000;
 WAIT_FOR_PACKETS_MS :: 16;
 MAX_CLIENTS         :: 8;
 
-PlayerMoveResponseMessage :: struct {
-    using #as base: Message;
+MIN_TILES :: Vector2i.{0, 0};
+MAX_TILES :: Vector2i.{TILES_X, TILES_Y};
 
-    game_state_index: s16;
+serialize_struct :: (stream: *Stream, using vector: *Vector2i, min: Vector2i, max: Vector2i) -> bool {
+    serialize_int(stream, *vector.x, min.x, max.x);
+    serialize_int(stream, *vector.y, min.y, max.y);
+    return true;
+}
+
+PlayerMoveResponseData :: struct {
+    state_index: s16;
     uuid: u64;
-
     x: u16;
     y: u16;
     count: s64;
-    path: []Vector2i;
+    path: [ENTITY_PATH_COUNT]Vector2i;
+}
+PlayerMoveResponseMessage :: struct {
+    using #as base: Message;
+    using data: PlayerMoveResponseData;
 
     serializer :: MessageSerializer.{
         create = () -> *Message { return New(PlayerMoveResponseMessage); },
         serialize = (stream: *Stream, message: *Message) -> bool {
             m := cast(*PlayerMoveResponseMessage) message;
-            serialize_bits(stream, *m.game_state_index, 16);
+            serialize_bits(stream, *m.state_index, 16);
             serialize_bits(stream, *m.uuid, 64);
             serialize_bits(stream, *m.x, 16);
             serialize_bits(stream, *m.y, 16);
 
             serialize_bits(stream, *m.count, 16);
-            x, y: s32;
-            if stream.isReading m.path = NewArray(m.count, Vector2i, initialized=false);
-            for 0..m.count-1 {
-                if stream.isWriting {
-                    x, y = m.path[it].x, m.path[it].y;
-                }
-                if x > TILES_X || y > TILES_Y {
-                    log("x, y: %, %\n", x, y);
-                    log("m.path: %\n", m.path);
-                }
-
-                serialize_int(stream, *x, 0, TILES_X);
-                serialize_int(stream, *y, 0, TILES_Y);
-
-                if stream.isReading {
-                    m.path[it] = .{x, y};
-                }
-            }
+            for 0..m.count-1
+                serialize_struct(stream, *m.path[it], MIN_TILES, MAX_TILES);
 
             return true;
         }
     };
 }
 
-PlayerMoveMessage :: struct {
-    using #as base: Message;
-
-    game_state_index: s16;
-
+PlayerMoveData :: struct {
+    state_index: s16;
     x: u16;
     y: u16;
+}
+PlayerMoveMessage :: struct {
+    using #as base: Message;
+    using data: PlayerMoveData;
 
     serializer :: MessageSerializer.{
         create = () -> *Message { return New(PlayerMoveMessage); },
@@ -62,20 +57,21 @@ PlayerMoveMessage :: struct {
             m := cast(*PlayerMoveMessage) message;
             serialize_bits(stream, *m.x, 16);
             serialize_bits(stream, *m.y, 16);
-            serialize_bits(stream, *m.game_state_index, 16);
+            serialize_bits(stream, *m.state_index, 16);
             return true;
         }
     };
 }
 
-NewPlayerMessage :: struct {
-    using #as base: Message;
-
-    game_state_index: s16;
+NewPlayerData :: struct {
+    state_index: s16;
     uuid: u64;
-
     x: u16;
     y: u16;
+}
+NewPlayerMessage :: struct {
+    using #as base: Message;
+    using data: NewPlayerData;
 
     serializer :: MessageSerializer.{
         create = () -> *Message { return New(NewPlayerMessage); },
@@ -84,7 +80,7 @@ NewPlayerMessage :: struct {
             serialize_bits(stream, *m.uuid, 64);
             serialize_bits(stream, *m.x, 16);
             serialize_bits(stream, *m.y, 16);
-            serialize_bits(stream, *m.game_state_index, 16);
+            serialize_bits(stream, *m.state_index, 16);
             return true;
         }
     };
@@ -105,19 +101,20 @@ ClientConnectMessage :: struct {
     };
 }
 
-ClientConnectResponseMessage :: struct {
-    using #as base: Message;
-
-    game_state_index: s16;
-
+ClientConnectResponseData :: struct {
+    state_index: s16;
     nr_of_players: s32;
     players: [MAX_PLAYERS]Entity;
+}
+ClientConnectResponseMessage :: struct {
+    using #as base: Message;
+    using data: ClientConnectResponseData;
 
     serializer :: MessageSerializer.{
         create = () -> *Message { return New(ClientConnectResponseMessage); },
         serialize = (stream: *Stream, message: *Message) -> bool {
             m := cast(*ClientConnectResponseMessage) message;
-            serialize_bits(stream, *m.game_state_index, 16);
+            serialize_bits(stream, *m.state_index, 16);
             serialize_bits(stream, *m.nr_of_players, 32);
             for 0..m.nr_of_players-1 {
                 player := *m.players[it];
@@ -222,7 +219,7 @@ make_network_manager :: (using network_manager: *NetworkManager) {
     }
 }
 
-network_manager_update :: (using network_manager: *NetworkManager, time: float32) -> bool {
+network_manager_update :: (using network_manager: *NetworkManager) -> bool {
     #if SERVER {
         server_send_packets(server);
         server_receive_packets(server);

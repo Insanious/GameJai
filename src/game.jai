@@ -33,7 +33,7 @@ Sprite :: struct {
     texture_rect: SDL_Rect;
 }
 
-ENTITY_PATH_COUNT :: 64;
+ENTITY_PATH_COUNT :: 16;
 Entity :: struct {
     using sprite: Sprite;
     sprite.texture_id = "resources/mage.bmp";
@@ -55,6 +55,7 @@ Entity :: struct {
 ACTION :: enum u16 {
     MOVE;
     MOVE_CORRECTION;
+    ADD_PLAYER;
 }
 
 ActionRequest :: struct {
@@ -63,6 +64,9 @@ ActionRequest :: struct {
     y: u16;
     uuid: u64 = 0;
     path: []Vector2i;
+    count: s64 = 0;
+    b_value: bool = false;
+    ignore: bool = false;
 }
 
 ActionResult :: struct {
@@ -148,16 +152,19 @@ add_player :: (using game_state: *GameState, uuid: u64, x: u16, y: u16, is_clien
     log("is_client: %\n", is_client);
     players[nr_of_players] = Entity.{ position=map_to_screen(xx x, xx y), uuid=uuid, is_client=is_client };
 
-    if is_client game_state.player_index = nr_of_players;
+    if is_client
+        game_state.player_index = nr_of_players;
+
     nr_of_players += 1;
 }
 
 perform_action_request :: (using game_state: *GameState, request: ActionRequest) -> (ActionResult, bool) {
     player := get_player(game_state, request.uuid);
-    assert(player != null, tprint("perform_action_request: Found no player with uuid == %", request.uuid));
 
     if request.action == {
         case .MOVE; {
+            assert(player != null, tprint("perform_action_request: Found no player with uuid == %", request.uuid));
+
             player_grid := screen_to_map(player.position);
             destination := Vector2i.{ x=request.x, y=request.y };
             assert(in_bounds(player_grid), tprint("perform_action_request: in_bounds(player_grid): %", in_bounds(player_grid)));
@@ -188,20 +195,28 @@ perform_action_request :: (using game_state: *GameState, request: ActionRequest)
         }
 
         case .MOVE_CORRECTION; {
+            assert(player != null, tprint("perform_action_request: Found no player with uuid == %", request.uuid));
+
             for tiles, y: game_state.tiles
                 for * tile, x: tiles
                     tile.is_path = false;
 
-            for request.path {
-                player.path[it_index] = it;
-                tiles[it.y][it.x].is_path = true;
+            for 0..request.count-1 {
+                vec := request.path[it];
+                player.path[it] = vec;
+                tiles[vec.y][vec.x].is_path = true;
             }
-            player.current_path_index = xx(request.path.count-1);
+            player.current_path_index = xx(request.count-1);
 
             if player.current_path_index >= 0
                 player.state = .RUNNING;
             else
                 player.state = .IDLE;
+        }
+
+        case .ADD_PLAYER; {
+            if !request.ignore
+                add_player(game_state, request.uuid, request.x, request.y, request.b_value);
         }
     }
 
