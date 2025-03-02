@@ -3,9 +3,6 @@ SERVER_PORT         :: 60000;
 WAIT_FOR_PACKETS_MS :: 16;
 MAX_CLIENTS         :: 8;
 
-MIN_TILES :: Vector2i.{0, 0};
-MAX_TILES :: Vector2i.{TILES_X, TILES_Y};
-
 serialize_struct :: (stream: *Stream, using vector: *Vector2i, min: Vector2i, max: Vector2i) -> bool {
     serialize_int(stream, *vector.x, min.x, max.x);
     serialize_int(stream, *vector.y, min.y, max.y);

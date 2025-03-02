@@ -5,6 +5,7 @@ SCREEN_SIZE :: Vector2i.{ 800, 600 };
 
 STATE_COUNT :: 256;
 GAME_STATES : [STATE_COUNT]GameState;
+WORLD       : World;
 
 next_state_index :: (index: s16, increment: s16 = 1) -> s16 { return (index + increment) % STATE_COUNT; }
 prev_state_index :: (index: s16, increment: s16 = 1) -> s16 { return (index - increment + STATE_COUNT) % STATE_COUNT; }
@@ -55,7 +56,7 @@ init_app :: (args: []string) -> (AppState, bool) {
     render_state, render_ok := make_render_state();
     if !render_ok return .{}, false;
 
-    init_game_state(*GAME_STATES[0]);
+    init_world(*WORLD);
 
     network_manager: *NetworkManager = null;
     #if SERVER || CLIENT {

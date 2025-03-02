@@ -9,7 +9,7 @@
 #load "renderer.jai";
 #load "game.jai";
 #load "input.jai";
-#load "common.jai";
+#load "common/common.jai";
 #load "network.jai";
 #load "infrastructure.jai";
 

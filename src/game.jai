@@ -1,19 +1,11 @@
 #load "pathfinding.jai";
-
-TILES_Y ::              16;
-TILES_X ::              16;
-TILE_SIZE ::            Vector2.{ 32, 16 };
-HALF_TILE_SIZE ::       Vector2.{ 16, 8 };
-TILE_RECT_SIZE ::       SDL_Point.{ 32, 32 };
-HALF_TILE_RECT_SIZE ::  SDL_Point.{ 16, 16 };
+#load "world.jai";
 
 MAX_PLAYERS :: 4;
 MAX_ACTIONS :: 16;
 GameState :: struct {
     players: [MAX_PLAYERS]Entity;
     nr_of_players: s32 = 0;
-
-    tiles: [TILES_Y][TILES_X] Tile;
     player_index: s32 = -1;
 
     actions: [MAX_ACTIONS]ActionRequest;
@@ -30,14 +22,14 @@ ENTIY_STATE :: enum u16 {
 
 Sprite :: struct {
     texture_id: string;
-    texture_rect: SDL_Rect;
+    texture_rect: IntRect;
 }
 
 ENTITY_PATH_COUNT :: 16;
 Entity :: struct {
     using sprite: Sprite;
     sprite.texture_id = "resources/mage.bmp";
-    sprite.texture_rect = SDL_Rect.{ x=0, y=0, w=32, h=48 };
+    sprite.texture_rect = IntRect.{ x=0, y=0, w=32, h=48 };
     position: Vector2;
     interpolated_position: Vector2;
     is_interpolating: bool = false;
@@ -77,39 +69,16 @@ ActionResult :: struct {
     path: []Vector2i;
 }
 
-Tile :: struct {
-    using sprite: Sprite;
-    sprite.texture_id = "resources/tileset.bmp";
-    position: Vector2;
-
-    is_walkable:    bool = true;
-    is_hovered:     bool = false;
-    is_path:        bool = false;
-}
-
 copy_game_state :: (dst: *GameState, src: *GameState) {
     memcpy(*dst.players, *src.players, MAX_PLAYERS * size_of(Entity));
     dst.nr_of_players = src.nr_of_players;
     dst.player_index = src.player_index;
-
-    for y: 0..TILES_Y-1
-        for x: 0..TILES_X-1
-            dst.tiles[y][x] = src.tiles[y][x];
 }
 
 temp_get_rect_points :: (start: Vector2i, end: Vector2i) -> []Vector2i {
     points: [..]Vector2i;
     for y: start.y..end.y for x: start.x..end.x array_add(*points, .{x, y});
     return points;
-}
-
-init_game_state :: (game_state: *GameState) {
-    for tiles, y: game_state.tiles {
-        for * tile, x: tiles {
-            tile.texture_rect = .{ 0, 0, TILE_RECT_SIZE.x, TILE_RECT_SIZE.y };
-            tile.position = map_to_screen(x, y);
-        }
-    }
 }
 
 add_action :: (using game_state: *GameState, action: ActionRequest) {
@@ -170,10 +139,10 @@ perform_action_request :: (using game_state: *GameState, request: ActionRequest)
             assert(in_bounds(player_grid), tprint("perform_action_request: in_bounds(player_grid): %", in_bounds(player_grid)));
             assert(in_bounds(destination), tprint("perform_action_request: in_bounds(destination): %", in_bounds(destination)));
 
-            path := jump_point_search(player_grid, destination, tiles,, temp);
+            path := jump_point_search(player_grid, destination, WORLD.tiles,, temp);
             if path.count {
                 player.state = .RUNNING;
-                for tiles, y: game_state.tiles
+                for tiles, y: WORLD.tiles
                     for * tile, x: tiles
                         tile.is_path = false;
 
@@ -185,7 +154,7 @@ perform_action_request :: (using game_state: *GameState, request: ActionRequest)
 
                 for path {
                     player.path[it_index] = it;
-                    tiles[it.y][it.x].is_path = true;
+                    WORLD.tiles[it.y][it.x].is_path = true;
                 }
 
                 log("perform_action_request result: %, %, %\n", path, player.position, player_grid);
@@ -197,14 +166,14 @@ perform_action_request :: (using game_state: *GameState, request: ActionRequest)
         case .MOVE_CORRECTION; {
             assert(player != null, tprint("perform_action_request: Found no player with uuid == %", request.uuid));
 
-            for tiles, y: game_state.tiles
+            for tiles, y: WORLD.tiles
                 for * tile, x: tiles
                     tile.is_path = false;
 
             for 0..request.count-1 {
                 vec := request.path[it];
                 player.path[it] = vec;
-                tiles[vec.y][vec.x].is_path = true;
+                WORLD.tiles[vec.y][vec.x].is_path = true;
             }
             player.current_path_index = xx(request.count-1);
 
@@ -224,14 +193,14 @@ perform_action_request :: (using game_state: *GameState, request: ActionRequest)
 }
 
 simulate :: (using game_state: *GameState, dt: float32) {
-    for tiles, y: game_state.tiles
+    for tiles, y: WORLD.tiles
         for * tile, x: tiles
             tile.is_hovered = false;
 
     mouse_pos: = mouse_to_screen(game_state) - tile_size_offset();
     mouse_grid := screen_to_map(mouse_pos);
     if in_bounds(mouse_grid)
-        tiles[mouse_grid.y][mouse_grid.x].is_hovered = true;
+        WORLD.tiles[mouse_grid.y][mouse_grid.x].is_hovered = true;
 
     for 0..nr_of_actions-1 perform_action_request(game_state, actions[it]);
 
@@ -277,24 +246,6 @@ entity_feet_offset :: (using entity: Entity) -> Vector2 {
     };
 }
 
-tile_size_offset :: () -> Vector2 { return .{ xx HALF_TILE_RECT_SIZE.x, xx HALF_TILE_RECT_SIZE.y }; }
-
-map_to_screen :: (x: s64, y: s64) -> Vector2 {
-    return Vector2.{
-        (x - y) * HALF_TILE_SIZE.x,
-        (x + y) * HALF_TILE_SIZE.y
-    };
-}
-
-map_to_screen :: (vector: Vector2i) -> Vector2 { return map_to_screen(vector.x, vector.y); }
-
-screen_to_map :: (using vector: Vector2) -> Vector2i {
-    return Vector2i.{
-        cast(s32, ceil((x / HALF_TILE_SIZE.x + y / HALF_TILE_SIZE.y) / 2)),
-        cast(s32, ceil((y / HALF_TILE_SIZE.y - x / HALF_TILE_SIZE.x) / 2))
-    };
-}
-
 mouse_to_screen :: (using game_state: *GameState) -> Vector2 {
     offset := input_state.mouse_position - (SCREEN_SIZE / 2);
     return Vector2.{
@@ -302,5 +253,3 @@ mouse_to_screen :: (using game_state: *GameState) -> Vector2 {
         offset.y / game_state.view.zoom + game_state.view.position.y
     };
 }
-
-in_bounds :: (using vector: Vector2i) -> bool { return (x >= 0 && x < TILES_X && y >= 0 && y < TILES_Y); }

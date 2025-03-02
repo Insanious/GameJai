@@ -10,7 +10,7 @@
 #load "renderer.jai";
 #load "game.jai";
 #load "input.jai";
-#load "common.jai";
+#load "common/common.jai";
 #load "network.jai";
 #load "infrastructure.jai";
 
@@ -136,11 +136,6 @@ main :: () {
     if !ok
         quit_app(*app);
 
-    // @HACK: copy init state to all other states, so when client syncs to server the tiles are set correctly
-    for 1..STATE_COUNT-1 {
-        memcpy(*GAME_STATES[it], *GAME_STATES[0], size_of(GameState));
-    }
-
     event: SDL_Event;
     previous_input: InputState;
     accumulated_input: InputState;
@@ -153,6 +148,11 @@ main :: () {
             input(*accumulated_input, *previous_input, *event);
 
         if accumulated_input.exit == true break;
+
+        if accumulated_input.r {
+            init_world(*WORLD);
+            accumulated_input.r = false;
+        }
 
         delta := clock_reset(*app.clock);
         app.accumulator += delta;

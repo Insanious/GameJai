@@ -43,28 +43,32 @@ make_render_state :: () -> (*RenderState, bool) {
     return render_state, true;
 }
 
-render_rect :: (view: View, render_state: *RenderState, texture_rect: SDL_Rect, pos: Vector2, texture: *SDL_Texture, debug: bool = false) {
-    dest_rect := SDL_Rect.{ xx pos.x, xx pos.y, texture_rect.w, texture_rect.h };
-    transformed_dest_rect := SDL_Rect.{
+render_rect :: (view: View, render_state: *RenderState, texture_rect: IntRect, pos: Vector2, texture: *SDL_Texture, debug: bool = false) {
+    dest_rect := IntRect.{ xx pos.x, xx pos.y, texture_rect.w, texture_rect.h };
+    transformed_dest_rect := IntRect.{
         xx ((dest_rect.x - view.position.x) * view.zoom + SCREEN_SIZE.x / 2), // @HARDCODED
         xx ((dest_rect.y - view.position.y) * view.zoom + SCREEN_SIZE.y / 2), // @HARDCODED
         xx (dest_rect.w * view.zoom),
         xx (dest_rect.h * view.zoom)
     };
+
+    SDL_transformed_dest_rect := to_SDL_Rect(transformed_dest_rect);
+    SDL_texture_rect := to_SDL_Rect(texture_rect);
     #if DEBUG {
         if debug {
             SDL_SetRenderDrawColor(render_state.renderer, 255, 0, 0, 1);
-            SDL_RenderDrawRect(render_state.renderer, *transformed_dest_rect);
+            SDL_RenderDrawRect(render_state.renderer, *SDL_transformed_dest_rect);
         }
     }
 
-    SDL_RenderCopy(render_state.renderer, texture, *texture_rect, *transformed_dest_rect);
+
+    SDL_RenderCopy(render_state.renderer, texture, *SDL_texture_rect, *SDL_transformed_dest_rect);
 }
 
-render_tiles :: (view: View, tiles: [TILES_Y][TILES_X] Tile, render_state: *RenderState) {
-    texture, ok := table_find(*render_state.textures, tiles[0][0].texture_id);
+render_world :: (view: View, world: World, render_state: *RenderState) {
+    texture, ok := table_find(*render_state.textures, world.tiles[0][0].texture_id);
     assert(ok, "couldn't find texture");
-    for t: tiles {
+    for t: world.tiles {
         for t {
             #if DEBUG {
                 if     !it.is_walkable  SDL_SetTextureColorMod(texture, 255, 100, 100);
@@ -82,7 +86,7 @@ render :: (current: *GameState, previous: *GameState, render_state: *RenderState
     SDL_SetRenderDrawColor(render_state.renderer, 100, 100, 100, 1);
     SDL_RenderClear(render_state.renderer);
 
-    render_tiles(view, current.tiles, render_state);
+    render_world(view, WORLD, render_state);
 
     for 0..current.nr_of_players-1 {
         player := current.players[it];
@@ -102,7 +106,7 @@ render :: (current: *GameState, previous: *GameState, render_state: *RenderState
             previous_position = previous_player.interpolated_position;
         }
 
-        lerped := lerp_vec(previous_position - offset, position - offset, alpha);
+        lerped := lerp(previous_position - offset, position - offset, alpha);
         render_rect(view, render_state, player.texture_rect, lerped, texture, true);
     }
 

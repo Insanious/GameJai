@@ -5,6 +5,7 @@ InputState :: struct {
     left, right, up, down: bool = false;
     RMB, RMB_pressed: bool = false;
     space: bool = false;
+    r    : bool = false;
 }
 
 input :: (using current: *InputState, previous: *InputState, event: *SDL_Event) {
@@ -19,6 +20,7 @@ input :: (using current: *InputState, previous: *InputState, event: *SDL_Event) 
                 case SDLK_w;        up      = true;
                 case SDLK_s;        down    = true;
                 case SDLK_SPACE;    space   = !previous.space;
+                case SDLK_r;            r   = !previous.r;
             }
 
         case SDL_KEYUP;
@@ -29,6 +31,7 @@ input :: (using current: *InputState, previous: *InputState, event: *SDL_Event) 
                 case SDLK_w;        up      = false;
                 case SDLK_s;        down    = false;
                 case SDLK_SPACE;    space   = false;
+                case SDLK_r;            r   = false;
             }
 
         case SDL_MOUSEWHEEL; scroll_delta += xx event.wheel.y;
