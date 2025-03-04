@@ -1,5 +1,5 @@
 #import "Basic";
-#import "SDL";
+#import "SDL3";
 #import "Math";
 #import "Random";
 #import "Yojimbo"()(ENABLE_LOGGING=true);
@@ -87,8 +87,8 @@ main :: () {
 
         while SDL_PollEvent(*event) {
             if event.type == {
-                case SDL_QUIT; quit_app(*app);
-                case SDL_KEYDOWN; if event.key.keysym.sym == SDLK_ESCAPE then quit_app(*app);
+                case .SDL_EVENT_QUIT; quit_app(*app);
+                case .SDL_EVENT_KEY_DOWN; if event.key.key == SDLK_ESCAPE then quit_app(*app);
             }
         }
 

@@ -1,6 +1,6 @@
 InputState :: struct {
     exit:   bool;
-    mouse_position: Vector2i;
+    mouse_position: Vector2;
     scroll_delta: s8 = 0;
     left, right, up, down: bool = false;
     RMB, RMB_pressed: bool = false;
@@ -10,39 +10,39 @@ InputState :: struct {
 
 input :: (using current: *InputState, previous: *InputState, event: *SDL_Event) {
     if event.type == {
-        case SDL_QUIT; exit = true;
+        case .SDL_EVENT_QUIT; exit = true;
 
-        case SDL_KEYDOWN;
-            if event.key.keysym.sym == {
+        case .SDL_EVENT_KEY_DOWN;
+            if event.key.key == {
                 case SDLK_ESCAPE;   exit    = true;
-                case SDLK_a;        left    = true;
-                case SDLK_d;        right   = true;
-                case SDLK_w;        up      = true;
-                case SDLK_s;        down    = true;
+                case SDLK_A;        left    = true;
+                case SDLK_D;        right   = true;
+                case SDLK_W;        up      = true;
+                case SDLK_S;        down    = true;
                 case SDLK_SPACE;    space   = !previous.space;
-                case SDLK_r;            r   = !previous.r;
+                case SDLK_R;            r   = !previous.r;
             }
 
-        case SDL_KEYUP;
-            if event.key.keysym.sym == {
+        case .SDL_EVENT_KEY_UP;
+            if event.key.key == {
                 case SDLK_ESCAPE;   exit    = false;
-                case SDLK_a;        left    = false;
-                case SDLK_d;        right   = false;
-                case SDLK_w;        up      = false;
-                case SDLK_s;        down    = false;
+                case SDLK_A;        left    = false;
+                case SDLK_D;        right   = false;
+                case SDLK_W;        up      = false;
+                case SDLK_S;        down    = false;
                 case SDLK_SPACE;    space   = false;
-                case SDLK_r;            r   = false;
+                case SDLK_R;            r   = false;
             }
 
-        case SDL_MOUSEWHEEL; scroll_delta += xx event.wheel.y;
+        case .SDL_EVENT_MOUSE_WHEEL; scroll_delta += xx event.wheel.y;
 
-        case SDL_MOUSEBUTTONDOWN;
+        case .SDL_EVENT_MOUSE_BUTTON_DOWN;
         {
             if event.button.button == {
                 case SDL_BUTTON_RIGHT;  RMB, RMB_pressed = true, !previous.RMB_pressed;
             }
         }
-        case SDL_MOUSEBUTTONUP;
+        case .SDL_EVENT_MOUSE_BUTTON_UP;
         {
             if event.button.button == {
                 case SDL_BUTTON_RIGHT;  RMB = false;

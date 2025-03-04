@@ -1,7 +1,7 @@
 #load "view.jai";
 
 FRAMETIME   :: 1.0 / 10.0;
-SCREEN_SIZE :: Vector2i.{ 800, 600 };
+SCREEN_SIZE :: Vector2.{ 800, 600 };
 
 STATE_COUNT :: 256;
 GAME_STATES : [STATE_COUNT]GameState;
@@ -51,7 +51,17 @@ AppState :: struct {
 }
 
 init_app :: (args: []string) -> (AppState, bool) {
-    SDL_Init(SDL_INIT_EVERYTHING);
+
+    SDL_Init(
+        SDL_INIT_AUDIO    |
+        SDL_INIT_VIDEO    |
+        SDL_INIT_JOYSTICK |
+        SDL_INIT_HAPTIC   |
+        SDL_INIT_GAMEPAD  |
+        SDL_INIT_EVENTS   |
+        SDL_INIT_SENSOR   |
+        SDL_INIT_CAMERA
+    );
 
     render_state, render_ok := make_render_state();
     if !render_ok return .{}, false;

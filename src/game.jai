@@ -22,14 +22,14 @@ ENTIY_STATE :: enum u16 {
 
 Sprite :: struct {
     texture_id: string;
-    texture_rect: IntRect;
+    texture_rect: Rect;
 }
 
 ENTITY_PATH_COUNT :: 16;
 Entity :: struct {
     using sprite: Sprite;
     sprite.texture_id = "resources/mage.bmp";
-    sprite.texture_rect = IntRect.{ x=0, y=0, w=32, h=48 };
+    sprite.texture_rect = Rect.{ x=0, y=0, w=32, h=48 };
     position: Vector2;
     interpolated_position: Vector2;
     is_interpolating: bool = false;
@@ -197,7 +197,7 @@ simulate :: (using game_state: *GameState, dt: float32) {
         for * tile, x: tiles
             tile.is_hovered = false;
 
-    mouse_pos: = mouse_to_screen(game_state) - tile_size_offset();
+    mouse_pos: = mouse_to_screen(game_state) - HALF_TILE_RECT_SIZE;
     mouse_grid := screen_to_map(mouse_pos);
     if in_bounds(mouse_grid)
         WORLD.tiles[mouse_grid.y][mouse_grid.x].is_hovered = true;

@@ -1,5 +1,5 @@
 #import "Basic";
-#import "SDL";
+#import "SDL3";
 #import "Math";
 #import "Random";
 #import "Yojimbo"()(ENABLE_LOGGING=true);
@@ -97,7 +97,7 @@ convert_input_to_actions :: (input_state: *InputState, game_state: *GameState) -
     if input_state.RMB_pressed {
         assert(game_state.player_index != -1, "Tried creating action when player_index == -1");
 
-        mouse_pos: = mouse_to_screen(game_state) - tile_size_offset();
+        mouse_pos: = mouse_to_screen(game_state) - HALF_TILE_RECT_SIZE;
         mouse_grid := screen_to_map(mouse_pos);
         if in_bounds(mouse_grid) {
             log("out game_state.player_index: %\n", game_state.player_index);

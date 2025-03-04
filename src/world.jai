@@ -5,8 +5,8 @@ MAX_TILES ::            Vector2i.{TILES_X, TILES_Y};
 
 TILE_SIZE ::            Vector2.{32, 16};
 HALF_TILE_SIZE ::       Vector2.{16,  8};
-TILE_RECT_SIZE ::       Vector2i.{32, 32};
-HALF_TILE_RECT_SIZE ::  Vector2i.{16, 16};
+TILE_RECT_SIZE ::       Vector2.{32, 32};
+HALF_TILE_RECT_SIZE ::  Vector2.{16, 16};
 
 World :: struct {
     tiles: [TILES_Y][TILES_X]Tile;
@@ -101,8 +101,6 @@ init_world :: (using world: *World) {
             tiles[it.y][it.x].is_walkable = true;
     }
 }
-
-tile_size_offset :: () -> Vector2 { return .{ xx HALF_TILE_RECT_SIZE.x, xx HALF_TILE_RECT_SIZE.y }; }
 
 map_to_screen :: (x: s64, y: s64) -> Vector2 {
     return Vector2.{

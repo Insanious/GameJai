@@ -1,4 +1,3 @@
-#import "SDL";
 #import "Hash_Table";
 
 RenderState :: struct {
@@ -10,15 +9,15 @@ RenderState :: struct {
 
 make_render_state :: () -> (*RenderState, bool) {
     render_state := New(RenderState);
-    #if SERVER              render_state.window = SDL_CreateWindow("Game Server", 400, 300, SCREEN_SIZE.x, SCREEN_SIZE.y, 0);
-    #if CLIENT              render_state.window = SDL_CreateWindow("Game Client", 400, 300, SCREEN_SIZE.x, SCREEN_SIZE.y, 0);
-    #if !SERVER && !CLIENT  render_state.window = SDL_CreateWindow("Game", 400, 300, SCREEN_SIZE.x, SCREEN_SIZE.y, 0);
+    #if SERVER              render_state.window = SDL_CreateWindow("Game Server", xx SCREEN_SIZE.x, xx SCREEN_SIZE.y, 0);
+    #if CLIENT              render_state.window = SDL_CreateWindow("Game Client", xx SCREEN_SIZE.x, xx SCREEN_SIZE.y, 0);
+    #if !SERVER && !CLIENT  render_state.window = SDL_CreateWindow("Game", xx SCREEN_SIZE.x, xx SCREEN_SIZE.y, 0);
     if !render_state.window {
         log("SDL_CreateWindow: %\n", to_string(SDL_GetError()));
         return null, false;
     }
 
-    render_state.renderer = SDL_CreateRenderer(render_state.window, -1, 0);
+    render_state.renderer = SDL_CreateRenderer(render_state.window, null);
     if !render_state.renderer {
         log("SDL_CreateRenderer: %\n", to_string(SDL_GetError()));
         return null, false;
@@ -36,6 +35,10 @@ make_render_state :: () -> (*RenderState, bool) {
         }
 
         texture = SDL_CreateTextureFromSurface(render_state.renderer, surface);
+        if !SDL_SetTextureScaleMode(texture, .SDL_SCALEMODE_NEAREST) {
+            log("SDL_SetTextureScaleMode(%): %\n", str, to_string(SDL_GetError()));
+            return null, false;
+        }
         table_set(*render_state.textures, str, texture);
         log("Loaded asset \"%\" with id \"%\"\n", str, str);
     }
@@ -43,26 +46,26 @@ make_render_state :: () -> (*RenderState, bool) {
     return render_state, true;
 }
 
-render_rect :: (view: View, render_state: *RenderState, texture_rect: IntRect, pos: Vector2, texture: *SDL_Texture, debug: bool = false) {
-    dest_rect := IntRect.{ xx pos.x, xx pos.y, texture_rect.w, texture_rect.h };
-    transformed_dest_rect := IntRect.{
-        xx ((dest_rect.x - view.position.x) * view.zoom + SCREEN_SIZE.x / 2), // @HARDCODED
-        xx ((dest_rect.y - view.position.y) * view.zoom + SCREEN_SIZE.y / 2), // @HARDCODED
-        xx (dest_rect.w * view.zoom),
-        xx (dest_rect.h * view.zoom)
+render_rect :: (view: View, render_state: *RenderState, texture_rect: Rect, pos: Vector2, texture: *SDL_Texture, debug: bool = false) {
+    dest_rect := Rect.{ pos.x, pos.y, texture_rect.w, texture_rect.h };
+    transformed_dest_rect := Rect.{
+        (dest_rect.x - view.position.x) * view.zoom + SCREEN_SIZE.x / 2, // @HARDCODED
+        (dest_rect.y - view.position.y) * view.zoom + SCREEN_SIZE.y / 2, // @HARDCODED
+        dest_rect.w * view.zoom,
+        dest_rect.h * view.zoom
     };
 
-    SDL_transformed_dest_rect := to_SDL_Rect(transformed_dest_rect);
-    SDL_texture_rect := to_SDL_Rect(texture_rect);
+    SDL_transformed_dest_rect := to_SDL_FRect(transformed_dest_rect);
+    SDL_texture_rect := to_SDL_FRect(texture_rect);
     #if DEBUG {
         if debug {
             SDL_SetRenderDrawColor(render_state.renderer, 255, 0, 0, 1);
-            SDL_RenderDrawRect(render_state.renderer, *SDL_transformed_dest_rect);
+            SDL_RenderRect(render_state.renderer, *SDL_transformed_dest_rect);
         }
     }
 
 
-    SDL_RenderCopy(render_state.renderer, texture, *SDL_texture_rect, *SDL_transformed_dest_rect);
+    SDL_RenderTexture(render_state.renderer, texture, *SDL_texture_rect, *SDL_transformed_dest_rect);
 }
 
 render_world :: (view: View, world: World, render_state: *RenderState) {
