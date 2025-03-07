@@ -43,4 +43,9 @@ operator * :: (rect: IntRect, scalar: s32) -> IntRect #symmetric { return IntRec
 operator / :: (rect: Rect, scalar: s32)    -> Rect    { return    Rect.{ rect.x / scalar, rect.y / scalar, rect.width / scalar, rect.height / scalar }; }
 operator / :: (rect: IntRect, scalar: s32) -> IntRect { return IntRect.{ rect.x / scalar, rect.y / scalar, rect.width / scalar, rect.height / scalar }; }
 
+rect_contains :: (r: Rect, p: Vector2)     -> bool { return p.x >= r.x && p.x <= r.x + r.w && p.y >= r.y && p.y <= r.y + r.h; }
+rect_contains :: (r: IntRect, p: Vector2i) -> bool { return p.x >= r.x && p.x <= r.x + r.w && p.y >= r.y && p.y <= r.y + r.h; }
+rect_contains :: (r: Rect, p: Vector2i)    -> bool { return rect_contains(r,  Vector2.{ xx p.x, xx p.y }); }
+rect_contains :: (r: IntRect, p: Vector2)  -> bool { return rect_contains(r, Vector2i.{ xx p.x, xx p.y }); }
+
 to_SDL_FRect :: (rect: Rect) -> SDL_FRect { return SDL_FRect.{ x=rect.x, y=rect.y, w=rect.w, h=rect.h}; }

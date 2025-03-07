@@ -8,8 +8,10 @@ HALF_TILE_SIZE ::       Vector2.{16,  8};
 TILE_RECT_SIZE ::       Vector2.{32, 32};
 HALF_TILE_RECT_SIZE ::  Vector2.{16, 16};
 
+MAX_AREAS :: 4;
 World :: struct {
     tiles: [TILES_Y][TILES_X]Tile;
+    areas: [MAX_AREAS]Area;
 }
 
 Tile :: struct {
@@ -20,12 +22,14 @@ Tile :: struct {
     is_walkable: bool = true;
     is_hovered:  bool = false;
     is_path:     bool = false;
+    is_whitelisted: bool = false;
 }
 
 ENTRANCE_SIZE :: 3;
 Area :: struct {
     rect: IntRect;
     entrance: [ENTRANCE_SIZE]Vector2i;
+    entrance_btn: Rect;
 }
 
 random_span :: (min: u64, max: u64) -> u64 { return random_get() % (max + 1 - min) + min; }
@@ -36,8 +40,8 @@ random_area :: () -> Area {
     while true {
         left := cast(s32, (random_get() % TILES_X));
         top := cast(s32, (random_get() % TILES_Y));
-        width: s32 = 8;
-        height: s32 = 8;
+        width: s32 = 6;
+        height: s32 = 6;
 
         rect = .{x=left, y=top, w=width, h=height};
         if in_bounds(rect.top_left) && in_bounds(rect.top_left + rect.size)
@@ -72,7 +76,10 @@ random_area :: () -> Area {
         break;
     }
 
-    return Area.{ rect=rect, entrance=entrance};
+    mid := map_to_screen(entrance[ENTRANCE_SIZE/2]);
+    entrance_btn: Rect = .{x=xx (mid.x + 10), y=xx (mid.y - 5), w=10, h=10};
+
+    return Area.{ rect=rect, entrance=entrance, entrance_btn=entrance_btn};
 }
 
 init_world :: (using world: *World) {
@@ -86,19 +93,21 @@ init_world :: (using world: *World) {
         }
     }
 
-    area := random_area();
-    {
-        using area;
-        for 0..rect.width {
-            tiles[rect.y            ][rect.x+it].is_walkable = false;
-            tiles[rect.y+rect.height][rect.x+it].is_walkable = false;
+    for 0..MAX_AREAS-1 {
+        world.areas[it] = random_area();
+        {
+            using world.areas[it];
+            for 0..rect.width {
+                tiles[rect.y            ][rect.x+it].is_walkable = false;
+                tiles[rect.y+rect.height][rect.x+it].is_walkable = false;
+            }
+            for 0..rect.height {
+                tiles[rect.y+it][rect.x           ].is_walkable = false;
+                tiles[rect.y+it][rect.x+rect.width].is_walkable = false;
+            }
+            for entrance
+                tiles[it.y][it.x].is_walkable = true;
         }
-        for 0..rect.height {
-            tiles[rect.y+it][rect.x           ].is_walkable = false;
-            tiles[rect.y+it][rect.x+rect.width].is_walkable = false;
-        }
-        for entrance
-            tiles[it.y][it.x].is_walkable = true;
     }
 }
 

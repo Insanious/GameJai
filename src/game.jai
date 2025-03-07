@@ -48,6 +48,7 @@ ACTION :: enum u16 {
     MOVE;
     MOVE_CORRECTION;
     ADD_PLAYER;
+    CLICK;
 }
 
 ActionRequest :: struct {
@@ -129,8 +130,7 @@ add_player :: (using game_state: *GameState, uuid: u64, x: u16, y: u16, is_clien
 
 perform_action_request :: (using game_state: *GameState, request: ActionRequest) -> (ActionResult, bool) {
     player := get_player(game_state, request.uuid);
-
-    if request.action == {
+    if #complete request.action == {
         case .MOVE; {
             assert(player != null, tprint("perform_action_request: Found no player with uuid == %", request.uuid));
 
@@ -186,6 +186,16 @@ perform_action_request :: (using game_state: *GameState, request: ActionRequest)
         case .ADD_PLAYER; {
             if !request.ignore
                 add_player(game_state, request.uuid, request.x, request.y, request.b_value);
+        }
+
+        case .CLICK; {
+            mouse_pos: = mouse_to_screen(game_state);
+            for 0..MAX_AREAS-1 {
+                area := *WORLD.areas[it];
+                if rect_contains(area.entrance_btn, mouse_pos) {
+                    for index: area.entrance WORLD.tiles[index.y][index.x].is_whitelisted = true;
+                }
+            }
         }
     }
 

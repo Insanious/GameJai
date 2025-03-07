@@ -74,15 +74,31 @@ render_world :: (view: View, world: World, render_state: *RenderState) {
     for t: world.tiles {
         for t {
             #if DEBUG {
-                if     !it.is_walkable  SDL_SetTextureColorMod(texture, 255, 100, 100);
-                else if it.is_path      SDL_SetTextureColorMod(texture, 100, 100, 255);
-                else if it.is_hovered   SDL_SetTextureColorMod(texture, 100, 255, 100);
+                if     !it.is_walkable    SDL_SetTextureColorMod(texture, 255, 100, 100);
+                else if it.is_path        SDL_SetTextureColorMod(texture, 100, 100, 255);
+                else if it.is_hovered     SDL_SetTextureColorMod(texture, 255, 255, 100);
+                else if it.is_whitelisted SDL_SetTextureColorMod(texture, 100, 255, 100);
             }
 
             render_rect(view, render_state, it.texture_rect, it.position, texture, false);
             SDL_SetTextureColorMod(texture, 255, 255, 255);
         }
     }
+    for area: world.areas {
+        rect := area.entrance_btn;
+        transformed_rect := Rect.{
+            (rect.x - view.position.x) * view.zoom + SCREEN_SIZE.x / 2, // @HARDCODED
+            (rect.y - view.position.y) * view.zoom + SCREEN_SIZE.y / 2, // @HARDCODED
+            rect.w * view.zoom,
+            rect.h * view.zoom
+        };
+        SDL_transformed_rect := to_SDL_FRect(transformed_rect);
+        SDL_SetRenderDrawColor(render_state.renderer, 40, 40, 255, 0);
+        SDL_RenderFillRect(render_state.renderer, *SDL_transformed_rect);
+        SDL_RenderRect(render_state.renderer, *SDL_transformed_rect);
+        SDL_SetRenderDrawColor(render_state.renderer, 255, 255, 255, 0);
+    }
+
 }
 
 render :: (current: *GameState, previous: *GameState, render_state: *RenderState, view: View, alpha: float32) {

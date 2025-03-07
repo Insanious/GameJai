@@ -107,6 +107,13 @@ convert_input_to_actions :: (input_state: *InputState, game_state: *GameState) -
         input_state.RMB_pressed = false;
     }
 
+    if input_state.LMB_pressed {
+        uuid: u64 = 69420;
+        if game_state.player_index != -1 then uuid = game_state.players[game_state.player_index].uuid;
+        array_add(*actions, ActionRequest.{ action=.CLICK, uuid=uuid });
+        input_state.LMB_pressed = false;
+    }
+
     if input_state.space {
         action := ActionRequest.{
             action  = .ADD_PLAYER,
