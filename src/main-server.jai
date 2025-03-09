@@ -41,12 +41,12 @@ process_messages :: (app: *AppState) {
             if cast(GameMessageType) message.type == {
                 case .PLAYER_MOVE; {
                     msg := cast(*PlayerMoveMessage) message;
-                    request := ActionRequest.{ action=.MOVE, x=msg.x, y=msg.y, uuid=uuid };
+                    request := ActionRequest.{ action=.MOVE, point=msg.point, uuid=uuid };
                     perform_clean_action_request(*dummy_state, msg.state_index, request);
                     player := get_player(*dummy_state, uuid);
                     assert(player != null);
 
-                    response_data := PlayerMoveResponseData.{ msg.state_index, uuid, msg.x, msg.y, player.current_path_index+1, player.path };
+                    response_data := PlayerMoveResponseData.{ msg.state_index, uuid, msg.point, player.current_path_index+1, player.path };
                     broadcast(server, .PLAYER_MOVE_RESPONSE, PlayerMoveResponseMessage, response_data);
 
                     fast_forward_state_with_request(msg.state_index, next_state_index(app.current), request);
@@ -57,9 +57,9 @@ process_messages :: (app: *AppState) {
                     response_data := ClientConnectResponseData.{ app.current, game_state.nr_of_players, game_state.players };
                     send_to_client(server, it, .CLIENT_CONNECT_RESPONSE, ClientConnectResponseMessage, response_data);
 
-                    new_player_data := NewPlayerData.{ app.current, uuid, xx(random_get() % TILES_X), xx(random_get() % TILES_Y) };
+                    new_player_data := NewPlayerData.{ app.current, uuid, Vector2i.{ xx(random_get() % TILES_X), xx(random_get() % TILES_Y) } };
                     broadcast(server, .NEW_PLAYER, NewPlayerMessage, new_player_data);
-                    add_player(game_state, uuid, new_player_data.x, new_player_data.y, false);
+                    add_player(game_state, uuid, new_player_data.point, false);
                 }
             }
             server_release_message(server, it, message);

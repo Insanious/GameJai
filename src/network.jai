@@ -12,8 +12,7 @@ serialize_struct :: (stream: *Stream, using vector: *Vector2i, min: Vector2i, ma
 PlayerMoveResponseData :: struct {
     state_index: s16;
     uuid: u64;
-    x: u16;
-    y: u16;
+    point: Vector2i;
     count: s64;
     path: [ENTITY_PATH_COUNT]Vector2i;
 }
@@ -27,8 +26,7 @@ PlayerMoveResponseMessage :: struct {
             m := cast(*PlayerMoveResponseMessage) message;
             serialize_bits(stream, *m.state_index, 16);
             serialize_bits(stream, *m.uuid, 64);
-            serialize_bits(stream, *m.x, 16);
-            serialize_bits(stream, *m.y, 16);
+            serialize_struct(stream, *m.point, MIN_TILES, MAX_TILES);
 
             serialize_bits(stream, *m.count, 16);
             for 0..m.count-1
@@ -41,8 +39,7 @@ PlayerMoveResponseMessage :: struct {
 
 PlayerMoveData :: struct {
     state_index: s16;
-    x: u16;
-    y: u16;
+    point: Vector2i;
 }
 PlayerMoveMessage :: struct {
     using #as base: Message;
@@ -52,9 +49,8 @@ PlayerMoveMessage :: struct {
         create = () -> *Message { return New(PlayerMoveMessage); },
         serialize = (stream: *Stream, message: *Message) -> bool {
             m := cast(*PlayerMoveMessage) message;
-            serialize_bits(stream, *m.x, 16);
-            serialize_bits(stream, *m.y, 16);
             serialize_bits(stream, *m.state_index, 16);
+            serialize_struct(stream, *m.point, MIN_TILES, MAX_TILES);
             return true;
         }
     };
@@ -63,8 +59,7 @@ PlayerMoveMessage :: struct {
 NewPlayerData :: struct {
     state_index: s16;
     uuid: u64;
-    x: u16;
-    y: u16;
+    point: Vector2i;
 }
 NewPlayerMessage :: struct {
     using #as base: Message;
@@ -74,10 +69,9 @@ NewPlayerMessage :: struct {
         create = () -> *Message { return New(NewPlayerMessage); },
         serialize = (stream: *Stream, message: *Message) -> bool {
             m := cast(*NewPlayerMessage) message;
-            serialize_bits(stream, *m.uuid, 64);
-            serialize_bits(stream, *m.x, 16);
-            serialize_bits(stream, *m.y, 16);
             serialize_bits(stream, *m.state_index, 16);
+            serialize_bits(stream, *m.uuid, 64);
+            serialize_struct(stream, *m.point, MIN_TILES, MAX_TILES);
             return true;
         }
     };

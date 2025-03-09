@@ -53,9 +53,8 @@ ACTION :: enum u16 {
 
 ActionRequest :: struct {
     action: ACTION;
-    x: u16;
-    y: u16;
     uuid: u64 = 0;
+    point: Vector2i;
     path: []Vector2i;
     count: s64 = 0;
     b_value: bool = false;
@@ -88,7 +87,7 @@ remove_action :: (using game_state: *GameState, action: ActionRequest) {
     if action.action == {
         case .MOVE; {
             for 0..nr_of_actions-1 {
-                if action.x == actions[it].x && action.y == actions[it].y && action.uuid == actions[it].uuid {
+                if action.point == actions[it].point && action.uuid == actions[it].uuid {
                     actions[it] = actions[nr_of_actions-1];
                     nr_of_actions -= 1;
                     return;
@@ -110,9 +109,9 @@ get_player :: (using game_state: *GameState, uuid: u64) -> *Entity {
     return null;
 }
 
-add_player :: (using game_state: *GameState, uuid: u64, x: u16, y: u16, is_client: bool) {
+add_player :: (using game_state: *GameState, uuid: u64, point: Vector2i, is_client: bool) {
     log("is_client: %\n", is_client);
-    players[nr_of_players] = Entity.{ position=map_to_screen(xx x, xx y), uuid=uuid, is_client=is_client };
+    players[nr_of_players] = Entity.{ position=map_to_screen(point), uuid=uuid, is_client=is_client };
 
     if is_client
         game_state.player_index = nr_of_players;
@@ -127,7 +126,7 @@ perform_action_request :: (using game_state: *GameState, request: ActionRequest)
             assert(player != null, tprint("perform_action_request: Found no player with uuid == %", request.uuid));
 
             player_grid := screen_to_map(player.position);
-            destination := Vector2i.{ x=request.x, y=request.y };
+            destination := request.point;
             assert(in_bounds(player_grid), tprint("perform_action_request: in_bounds(player_grid): %", in_bounds(player_grid)));
             assert(in_bounds(destination), tprint("perform_action_request: in_bounds(destination): %", in_bounds(destination)));
 
@@ -177,7 +176,7 @@ perform_action_request :: (using game_state: *GameState, request: ActionRequest)
 
         case .ADD_PLAYER; {
             if !request.ignore
-                add_player(game_state, request.uuid, request.x, request.y, request.b_value);
+                add_player(game_state, request.uuid, request.point, request.b_value);
         }
 
         case .CLICK; {

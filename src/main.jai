@@ -27,7 +27,7 @@ process_messages :: (app: *AppState) {
                 msg := cast(*NewPlayerMessage) message;
 
                 game_state := *GAME_STATES[msg.state_index];
-                action := ActionRequest.{ action=.ADD_PLAYER, x=msg.x, y=msg.y, uuid=msg.uuid, b_value=(msg.uuid == client.clientId), ignore=false };
+                action := ActionRequest.{ action=.ADD_PLAYER, point=msg.point, uuid=msg.uuid, b_value=(msg.uuid == client.clientId), ignore=false };
                 perform_action_request(game_state, action);
                 fast_forward_state(msg.state_index, next_state_index(app.current));
             }
@@ -48,9 +48,9 @@ process_messages :: (app: *AppState) {
                 copy_game_state(game_state, *GAME_STATES[prev_state_index(msg.state_index)]);
 
                 if client.clientId == msg.uuid
-                    remove_action(game_state, ActionRequest.{ action=.MOVE, uuid=msg.uuid, x=msg.x, y=msg.y });
+                    remove_action(game_state, ActionRequest.{ action=.MOVE, uuid=msg.uuid, point=msg.point });
 
-                action := ActionRequest.{ action=.MOVE_CORRECTION, uuid=msg.uuid, x=msg.x, y=msg.y, path=msg.path, count=msg.count };
+                action := ActionRequest.{ action=.MOVE_CORRECTION, uuid=msg.uuid, point=msg.point, path=msg.path, count=msg.count };
                 perform_action_request(game_state, action);
 
                 player := get_player(*GAME_STATES[app.current], msg.uuid);
@@ -79,7 +79,7 @@ send_actions_to_server :: (app: *AppState, actions: []ActionRequest) {
         if it.action == {
             case .MOVE; {
                 message := cast(*PlayerMoveMessage) client_create_message(client, xx GameMessageType.PLAYER_MOVE);
-                message.data = PlayerMoveData.{ state_index=app.current, x=it.x, y=it.y };
+                message.data = PlayerMoveData.{ state_index=app.current, point=it.point };
                 client_send_message(client, xx GameChannel.RELIABLE, message);
             }
 
@@ -101,7 +101,7 @@ convert_input_to_actions :: (input_state: *InputState, game_state: *GameState) -
         mouse_grid := screen_to_map(mouse_pos);
         if in_bounds(mouse_grid) {
             player := game_state.players[game_state.player_index];
-            array_add(*actions, ActionRequest.{ action=.MOVE, x=xx mouse_grid.x, y=xx mouse_grid.y, uuid=player.uuid });
+            array_add(*actions, ActionRequest.{ action=.MOVE, point=mouse_grid, uuid=player.uuid });
         }
         input_state.RMB_pressed = false;
     }
@@ -116,8 +116,7 @@ convert_input_to_actions :: (input_state: *InputState, game_state: *GameState) -
     if input_state.space {
         action := ActionRequest.{
             action  = .ADD_PLAYER,
-            x       = xx(random_get() % TILES_X),
-            y       = xx(random_get() % TILES_Y),
+            point   = Vector2i.{ xx(random_get() % TILES_X), xx(random_get() % TILES_Y) },
             uuid    = 69420,
             b_value = game_state.player_index == -1,
             ignore  = false
