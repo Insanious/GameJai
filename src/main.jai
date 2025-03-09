@@ -44,26 +44,26 @@ process_messages :: (app: *AppState) {
             case .PLAYER_MOVE_RESPONSE; {
                 msg := cast(*PlayerMoveResponseMessage) message;
 
-                game_state := *GAME_STATES[msg.state_index];
-                copy_game_state(game_state, *GAME_STATES[prev_state_index(msg.state_index)]);
+                player := get_player(*GAME_STATES[app.current], msg.uuid);
+                assert(player != null, ".PLAYER_MOVE_RESPONSE 1: player == null");
+                position_to_interpolate_to := ifx player.is_interpolating then player.interpolated_position else player.position;
 
-                if client.clientId == msg.uuid
-                    remove_action(game_state, ActionRequest.{ action=.MOVE, uuid=msg.uuid, point=msg.point });
+                game_state := *GAME_STATES[msg.state_index];
+                copy_game_state(game_state, *GAME_STATES[prev_state_index(msg.state_index)]); // reset msg state
+
+                if client.clientId == msg.uuid // remove the move done by the local client
+                     remove_action(game_state, ActionRequest.{ action=.MOVE, uuid=msg.uuid, point=msg.point });
 
                 action := ActionRequest.{ action=.MOVE_CORRECTION, uuid=msg.uuid, point=msg.point, path=msg.path, count=msg.count };
-                perform_action_request(game_state, action);
+                perform_action_request(game_state, action); // correct the move from the server message
 
-                player := get_player(*GAME_STATES[app.current], msg.uuid);
-                assert(player != null, ".PLAYER_MOVE_RESPONSE 2: player == null");
-                old_position := ifx player.is_interpolating then player.interpolated_position else player.position;
-
-                fast_forward_state(msg.state_index, next_state_index(app.current));
+                fast_forward_state(msg.state_index, next_state_index(app.current)); // fast forward as if nothing happened
 
                 if client.clientId != msg.uuid {
                     player = get_player(*GAME_STATES[app.current], msg.uuid);
-                    assert(player != null, ".PLAYER_MOVE_RESPONSE 3: player == null");
+                    assert(player != null, ".PLAYER_MOVE_RESPONSE 2: player == null");
                     player.is_interpolating = true;
-                    player.interpolated_position = old_position;
+                    player.interpolated_position = position_to_interpolate_to;
                 }
             }
         }

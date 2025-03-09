@@ -147,8 +147,6 @@ perform_action_request :: (using game_state: *GameState, request: ActionRequest)
                     player.path[it_index] = it;
                     WORLD.tiles[it.y][it.x].is_path = true;
                 }
-
-                log("perform_action_request result: %, %, %\n", path, player.position, player_grid);
             } else {
                 player.current_path_index = -1;
             }
@@ -209,32 +207,23 @@ simulate :: (using game_state: *GameState, dt: float32) {
             using player;
             if state == .RUNNING {
                 if current_path_index >= 0 {
-                    if entity_move_to_target(player, path[current_path_index]) {
+                    if move_position_to_target(*position, map_to_screen(path[current_path_index]), speed, dt) {
                         current_path_index -= 1;
                         if current_path_index < 0 then state = .IDLE;
                     }
                 }
             }
-        }
-
-        if player.is_interpolating {
-            if length_squared(player.interpolated_position - player.position) <= 4 { // @HARDCODED
-                player.is_interpolating = false;
-            } else {
-                dist := player.position - player.interpolated_position;
-                dist /= 3; // @HACK: good enough though
-                player.interpolated_position += dist;
-            }
+            if is_interpolating
+                if move_position_to_target(*interpolated_position, position, speed, dt)
+                    is_interpolating = false;
         }
     }
 }
 
-entity_move_to_target :: (entity: *Entity, position: Vector2i) -> bool {
-    target := map_to_screen(position);
-    dir := normalize(target - entity.position);
-    vel := dir * FRAMETIME * entity.speed;
-    no_remaining := length_squared(target - entity.position) <= length_squared(vel);
-    entity.position = ifx no_remaining then target else entity.position + vel;
+move_position_to_target :: (position: *Vector2, target: Vector2, speed: float32, dt: float32) -> bool {
+    distance := normalize(target - position) * dt * speed;
+    no_remaining := length_squared(target - position) <= length_squared(distance);
+    position.* = ifx no_remaining then target else position + distance;
     return no_remaining;
 }
 

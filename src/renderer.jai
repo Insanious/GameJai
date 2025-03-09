@@ -121,4 +121,5 @@ render :: (current: *GameState, previous: *GameState, render_state: *RenderState
     }
 
     SDL_RenderPresent(render_state.renderer);
+    SDL_Delay(1);
 }

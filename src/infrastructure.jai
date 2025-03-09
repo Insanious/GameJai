@@ -14,8 +14,6 @@ state_index_diff :: (low: s16, high: s16) -> s16            { return prev_state_
 fast_forward_state :: (start: s16, end: s16) {
     ticks := state_index_diff(start, end);
     log("fastforward %: %-%\n", ticks, start, end);
-    temp_actions: [MAX_ACTIONS]ActionRequest;
-    temp_nr_of_actions: s32 = 0;
     current := start;
     for 0..ticks-1 {
         simulate(*GAME_STATES[current], FRAMETIME);
