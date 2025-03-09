@@ -67,10 +67,10 @@ render_world :: (view: View, world: World, render_state: *RenderState) {
     for t: world.tiles {
         for t {
             #if DEBUG {
-                if     !it.is_walkable    SDL_SetTextureColorMod(texture, 255, 100, 100);
-                else if it.is_path        SDL_SetTextureColorMod(texture, 100, 100, 255);
-                else if it.is_hovered     SDL_SetTextureColorMod(texture, 255, 255, 100);
-                else if it.is_whitelisted SDL_SetTextureColorMod(texture, 100, 255, 100);
+                if      !(it.flags & .WALKABLE)    SDL_SetTextureColorMod(texture, 255, 100, 100);
+                else if   it.flags & .PATH         SDL_SetTextureColorMod(texture, 100, 100, 255);
+                else if   it.flags & .HOVERED      SDL_SetTextureColorMod(texture, 255, 255, 100);
+                else if   it.flags & .WHITELISTED  SDL_SetTextureColorMod(texture, 100, 255, 100);
             }
 
             render_rect(view, render_state, it.texture_rect, it.position, texture, false);

@@ -1,5 +1,5 @@
-TILES_Y ::              16;
-TILES_X ::              16;
+TILES_Y ::              32;
+TILES_X ::              32;
 MIN_TILES ::            Vector2i.{0, 0};
 MAX_TILES ::            Vector2i.{TILES_X, TILES_Y};
 
@@ -8,7 +8,7 @@ HALF_TILE_SIZE ::       Vector2.{16,  8};
 TILE_RECT_SIZE ::       Vector2.{32, 32};
 HALF_TILE_RECT_SIZE ::  Vector2.{16, 16};
 
-MAX_AREAS :: 0;
+MAX_AREAS :: 2;
 World :: struct {
     tiles: [TILES_Y][TILES_X]Tile;
     areas: [MAX_AREAS]Area;
@@ -19,10 +19,13 @@ Tile :: struct {
     sprite.texture_id = "resources/tileset.bmp";
     position: Vector2;
 
-    is_walkable: bool = true;
-    is_hovered:  bool = false;
-    is_path:     bool = false;
-    is_whitelisted: bool = false;
+    Flags :: enum_flags u8 {
+        WALKABLE    :: 0x01;
+        HOVERED     :: 0x02;
+        PATH        :: 0x04;
+        WHITELISTED :: 0x08;
+    }
+    flags: Flags = 0;
 }
 
 ENTRANCE_SIZE :: 3;
@@ -87,9 +90,7 @@ init_world :: (using world: *World) {
         for * tile, x: tiles {
             tile.texture_rect = .{ 0, 0, TILE_RECT_SIZE.x, TILE_RECT_SIZE.y };
             tile.position = map_to_screen(x, y);
-            tile.is_walkable = true;
-            tile.is_hovered  = false;
-            tile.is_path     = false;
+            tile.flags = .WALKABLE;
         }
     }
 
@@ -98,15 +99,15 @@ init_world :: (using world: *World) {
         {
             using world.areas[it];
             for 0..rect.width {
-                tiles[rect.y            ][rect.x+it].is_walkable = false;
-                tiles[rect.y+rect.height][rect.x+it].is_walkable = false;
+                tiles[rect.y            ][rect.x+it].flags &= ~.WALKABLE;
+                tiles[rect.y+rect.height][rect.x+it].flags &= ~.WALKABLE;
             }
             for 0..rect.height {
-                tiles[rect.y+it][rect.x           ].is_walkable = false;
-                tiles[rect.y+it][rect.x+rect.width].is_walkable = false;
+                tiles[rect.y+it][rect.x           ].flags &= ~.WALKABLE;
+                tiles[rect.y+it][rect.x+rect.width].flags &= ~.WALKABLE;
             }
             for entrance
-                tiles[it.y][it.x].is_walkable = true;
+                tiles[it.y][it.x].flags |= .WALKABLE;
         }
     }
 }

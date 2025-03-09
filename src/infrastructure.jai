@@ -52,12 +52,7 @@ init_app :: (args: []string) -> (AppState, bool) {
     SDL_Init(
         SDL_INIT_AUDIO    |
         SDL_INIT_VIDEO    |
-        SDL_INIT_JOYSTICK |
-        SDL_INIT_HAPTIC   |
-        SDL_INIT_GAMEPAD  |
-        SDL_INIT_EVENTS   |
-        SDL_INIT_SENSOR   |
-        SDL_INIT_CAMERA
+        SDL_INIT_EVENTS
     );
 
     render_state, render_ok := make_render_state();

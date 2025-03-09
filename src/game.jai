@@ -135,7 +135,7 @@ perform_action_request :: (using game_state: *GameState, request: ActionRequest)
                 player.state = .RUNNING;
                 for tiles, y: WORLD.tiles
                     for * tile, x: tiles
-                        tile.is_path = false;
+                        tile.flags &= ~.PATH;
 
                 if path.count >= ENTITY_PATH_COUNT { // truncate if too many points in path
                     diff := path.count - ENTITY_PATH_COUNT;
@@ -145,7 +145,7 @@ perform_action_request :: (using game_state: *GameState, request: ActionRequest)
 
                 for path {
                     player.path[it_index] = it;
-                    WORLD.tiles[it.y][it.x].is_path = true;
+                    WORLD.tiles[it.y][it.x].flags |= .PATH;
                 }
             } else {
                 player.current_path_index = -1;
@@ -157,12 +157,12 @@ perform_action_request :: (using game_state: *GameState, request: ActionRequest)
 
             for tiles, y: WORLD.tiles
                 for * tile, x: tiles
-                    tile.is_path = false;
+                    tile.flags &= ~.PATH;
 
             for 0..request.count-1 {
                 vec := request.path[it];
                 player.path[it] = vec;
-                WORLD.tiles[vec.y][vec.x].is_path = true;
+                WORLD.tiles[vec.y][vec.x].flags |= .PATH;
             }
             player.current_path_index = xx(request.count-1);
 
@@ -182,7 +182,7 @@ perform_action_request :: (using game_state: *GameState, request: ActionRequest)
             for 0..MAX_AREAS-1 {
                 area := *WORLD.areas[it];
                 if rect_contains(area.entrance_btn, mouse_pos) {
-                    for index: area.entrance WORLD.tiles[index.y][index.x].is_whitelisted = true;
+                    for index: area.entrance WORLD.tiles[index.y][index.x].flags |= .WHITELISTED;
                 }
             }
         }
@@ -192,12 +192,12 @@ perform_action_request :: (using game_state: *GameState, request: ActionRequest)
 simulate :: (using game_state: *GameState, dt: float32) {
     for tiles, y: WORLD.tiles
         for * tile, x: tiles
-            tile.is_hovered = false;
+            tile.flags &= ~.HOVERED;
 
     mouse_pos: = mouse_to_screen(game_state) - HALF_TILE_RECT_SIZE;
     mouse_grid := screen_to_map(mouse_pos);
     if in_bounds(mouse_grid)
-        WORLD.tiles[mouse_grid.y][mouse_grid.x].is_hovered = true;
+        WORLD.tiles[mouse_grid.y][mouse_grid.x].flags |= .HOVERED;
 
     for 0..nr_of_actions-1 perform_action_request(game_state, actions[it]);
 

@@ -22,7 +22,7 @@ heuristic :: (a: Vector2i, b: Vector2i) -> float32 {
 }
 
 is_walkable :: (using vector: Vector2i, tiles: [TILES_Y][TILES_X]Tile) -> bool {
-    return x >= 0 && x < TILES_X && y >= 0 && y < TILES_Y && tiles[y][x].is_walkable;
+    return x >= 0 && x < TILES_X && y >= 0 && y < TILES_Y && tiles[y][x].flags & .WALKABLE;
 }
 
 jump_diagonal :: (current: Vector2i, dir: Vector2i, goal: Vector2i, tiles: [TILES_Y][TILES_X]Tile) -> Vector2i {
