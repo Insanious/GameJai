@@ -14,18 +14,18 @@ World :: struct {
     areas: [MAX_AREAS]Area;
 }
 
+TileFlags :: enum_flags u8 {
+    WALKABLE    :: 0x01;
+    HOVERED     :: 0x02;
+    PATH        :: 0x04;
+    WHITELISTED :: 0x08;
+}
+
 Tile :: struct {
     using sprite: Sprite;
     sprite.texture_id = "resources/tileset.bmp";
     position: Vector2;
-
-    Flags :: enum_flags u8 {
-        WALKABLE    :: 0x01;
-        HOVERED     :: 0x02;
-        PATH        :: 0x04;
-        WHITELISTED :: 0x08;
-    }
-    flags: Flags = 0;
+    flags: TileFlags = 0;
 }
 
 ENTRANCE_SIZE :: 3;

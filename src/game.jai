@@ -133,8 +133,8 @@ perform_action_request :: (using game_state: *GameState, request: ActionRequest)
             path := jump_point_search(player_grid, destination, WORLD.tiles,, temp);
             if path.count {
                 player.state = .RUNNING;
-                for tiles, y: WORLD.tiles
-                    for * tile, x: tiles
+                for tiles: WORLD.tiles
+                    for * tile: tiles
                         tile.flags &= ~.PATH;
 
                 if path.count >= ENTITY_PATH_COUNT { // truncate if too many points in path
@@ -155,8 +155,8 @@ perform_action_request :: (using game_state: *GameState, request: ActionRequest)
         case .MOVE_CORRECTION; {
             assert(player != null, tprint("perform_action_request: Found no player with uuid == %", request.uuid));
 
-            for tiles, y: WORLD.tiles
-                for * tile, x: tiles
+            for tiles: WORLD.tiles
+                for * tile: tiles
                     tile.flags &= ~.PATH;
 
             for 0..request.count-1 {
@@ -190,8 +190,8 @@ perform_action_request :: (using game_state: *GameState, request: ActionRequest)
 }
 
 simulate :: (using game_state: *GameState, dt: float32) {
-    for tiles, y: WORLD.tiles
-        for * tile, x: tiles
+    for tiles: WORLD.tiles
+        for * tile: tiles
             tile.flags &= ~.HOVERED;
 
     mouse_pos: = mouse_to_screen(game_state) - HALF_TILE_RECT_SIZE;

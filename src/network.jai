@@ -3,9 +3,31 @@ SERVER_PORT         :: 60000;
 WAIT_FOR_PACKETS_MS :: 16;
 MAX_CLIENTS         :: 8;
 
-serialize_struct :: (stream: *Stream, using vector: *Vector2i, min: Vector2i, max: Vector2i) -> bool {
+// Serialize Vector2
+serialize_struct :: (stream: *Stream, vector: *Vector2) -> bool {
+    serialize_float(stream, *vector.x);
+    serialize_float(stream, *vector.y);
+    return true;
+}
+
+// Serialize Vector2i
+serialize_struct :: (stream: *Stream, vector: *Vector2i, min: Vector2i, max: Vector2i) -> bool {
     serialize_int(stream, *vector.x, min.x, max.x);
     serialize_int(stream, *vector.y, min.y, max.y);
+    return true;
+}
+
+// Serialize Rect
+serialize_struct :: (stream: *Stream, rect: *Rect) -> bool {
+    serialize_struct(stream, *rect.top_left);
+    serialize_struct(stream, *rect.size);
+    return true;
+}
+
+// Serialize IntRect
+serialize_struct :: (stream: *Stream, rect: *IntRect, min: Vector2i, max: Vector2i) -> bool {
+    serialize_struct(stream, *rect.top_left, min, max);
+    serialize_struct(stream, *rect.size, min, max);
     return true;
 }
 
@@ -96,6 +118,8 @@ ClientConnectResponseData :: struct {
     state_index: s16;
     nr_of_players: s32;
     players: [MAX_PLAYERS]Entity;
+    tile_flags: [TILES_Y][TILES_X]TileFlags;
+    areas: [MAX_AREAS]Area;
 }
 ClientConnectResponseMessage :: struct {
     using #as base: Message;
@@ -114,6 +138,18 @@ ClientConnectResponseMessage :: struct {
                 serialize_float(stream, *player.position.x);
                 serialize_float(stream, *player.position.y);
             }
+
+            for y: 0..TILES_Y-1
+                for x: 0..TILES_X-1
+                    serialize_bits(stream, *m.tile_flags[y][x], 8);
+
+            for 0..MAX_AREAS-1 {
+                serialize_struct(stream, *m.areas[it].rect, MIN_TILES, MAX_TILES);
+                serialize_struct(stream, *m.areas[it].entrance_btn);
+                for entrance_idx: 0..ENTRANCE_SIZE-1
+                    serialize_struct(stream, *m.areas[it].entrance[entrance_idx], MIN_TILES, MAX_TILES);
+            }
+
             return true;
         }
     };

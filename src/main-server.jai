@@ -54,7 +54,10 @@ process_messages :: (app: *AppState) {
 
                 case .CLIENT_CONNECT; {
                     game_state = *GAME_STATES[app.current];
-                    response_data := ClientConnectResponseData.{ app.current, game_state.nr_of_players, game_state.players };
+                    response_data := ClientConnectResponseData.{ state_index=app.current, nr_of_players=game_state.nr_of_players, players=game_state.players, areas=WORLD.areas };
+                    for y: 0..TILES_Y-1
+                        for x: 0..TILES_X-1
+                            response_data.tile_flags[y][x] = WORLD.tiles[y][x].flags;
                     send_to_client(server, it, .CLIENT_CONNECT_RESPONSE, ClientConnectResponseMessage, response_data);
 
                     new_player_data := NewPlayerData.{ app.current, uuid, Vector2i.{ xx(random_get() % TILES_X), xx(random_get() % TILES_Y) } };

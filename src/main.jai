@@ -39,6 +39,10 @@ process_messages :: (app: *AppState) {
                 app.previous = prev_state_index(msg.state_index);
                 GAME_STATES[app.current].nr_of_players = msg.nr_of_players;
                 GAME_STATES[app.current].players = msg.players;
+                WORLD.areas = msg.areas;
+                for y: 0..TILES_Y-1
+                    for x: 0..TILES_X-1
+                        WORLD.tiles[y][x].flags = msg.tile_flags[y][x];
             }
 
             case .PLAYER_MOVE_RESPONSE; {
