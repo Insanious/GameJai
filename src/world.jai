@@ -1,5 +1,5 @@
-TILES_Y ::              32;
-TILES_X ::              32;
+TILES_Y ::              16;
+TILES_X ::              16;
 MIN_TILES ::            Vector2i.{0, 0};
 MAX_TILES ::            Vector2i.{TILES_X, TILES_Y};
 
@@ -8,7 +8,7 @@ HALF_TILE_SIZE ::       Vector2.{16,  8};
 TILE_RECT_SIZE ::       Vector2.{32, 32};
 HALF_TILE_RECT_SIZE ::  Vector2.{16, 16};
 
-MAX_AREAS :: 4;
+MAX_AREAS :: 0;
 World :: struct {
     tiles: [TILES_Y][TILES_X]Tile;
     areas: [MAX_AREAS]Area;

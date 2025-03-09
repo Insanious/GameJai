@@ -36,9 +36,9 @@ process_messages :: (app: *AppState) {
                 msg := cast(*ClientConnectResponseMessage) message;
 
                 app.current = msg.state_index;
-                app.previous = (app.current - 1 + STATE_COUNT) % STATE_COUNT;
+                app.previous = prev_state_index(msg.state_index);
                 GAME_STATES[app.current].nr_of_players = msg.nr_of_players;
-                memcpy(*GAME_STATES[app.current].players, *msg.players, MAX_PLAYERS * size_of(Entity));
+                GAME_STATES[app.current].players = msg.players;
             }
 
             case .PLAYER_MOVE_RESPONSE; {
@@ -100,7 +100,6 @@ convert_input_to_actions :: (input_state: *InputState, game_state: *GameState) -
         mouse_pos: = mouse_to_screen(game_state) - HALF_TILE_RECT_SIZE;
         mouse_grid := screen_to_map(mouse_pos);
         if in_bounds(mouse_grid) {
-            log("out game_state.player_index: %\n", game_state.player_index);
             player := game_state.players[game_state.player_index];
             array_add(*actions, ActionRequest.{ action=.MOVE, x=xx mouse_grid.x, y=xx mouse_grid.y, uuid=player.uuid });
         }

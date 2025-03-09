@@ -33,10 +33,9 @@ fast_forward_state_with_request :: (start: s16, end: s16, request: ActionRequest
     fast_forward_state(start, end);
 }
 
-perform_clean_action_request :: (index: s16, request: ActionRequest) -> (ActionResult, bool) {
-    memcpy(*GAME_STATES[index], *GAME_STATES[prev_state_index(index)], size_of(GameState));
-    result, ok := perform_action_request(*GAME_STATES[index], request);
-    return result, ok;
+perform_clean_action_request :: (game_state: *GameState, index: s16, request: ActionRequest) {
+    memcpy(game_state, *GAME_STATES[prev_state_index(index)], size_of(GameState));
+    perform_action_request(game_state, request);
 }
 
 AppState :: struct {

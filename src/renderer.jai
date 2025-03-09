@@ -9,23 +9,16 @@ RenderState :: struct {
 
 make_render_state :: () -> (*RenderState, bool) {
     render_state := New(RenderState);
-    #if SERVER              render_state.window = SDL_CreateWindow("Game Server", xx SCREEN_SIZE.x, xx SCREEN_SIZE.y, 0);
-    #if CLIENT              render_state.window = SDL_CreateWindow("Game Client", xx SCREEN_SIZE.x, xx SCREEN_SIZE.y, 0);
-    #if !SERVER && !CLIENT  render_state.window = SDL_CreateWindow("Game", xx SCREEN_SIZE.x, xx SCREEN_SIZE.y, 0);
-    if !render_state.window {
-        log("SDL_CreateWindow: %\n", to_string(SDL_GetError()));
-        return null, false;
-    }
-
-    render_state.renderer = SDL_CreateRenderer(render_state.window, null);
-    if !render_state.renderer {
-        log("SDL_CreateRenderer: %\n", to_string(SDL_GetError()));
+    #if SERVER             ok := SDL_CreateWindowAndRenderer("Game Server", xx SCREEN_SIZE.x, xx SCREEN_SIZE.y, 0, *render_state.window, *render_state.renderer);
+    #if CLIENT             ok := SDL_CreateWindowAndRenderer("Game Client", xx SCREEN_SIZE.x, xx SCREEN_SIZE.y, 0, *render_state.window, *render_state.renderer);
+    #if !SERVER && !CLIENT ok := SDL_CreateWindowAndRenderer("Game",        xx SCREEN_SIZE.x, xx SCREEN_SIZE.y, 0, *render_state.window, *render_state.renderer);
+    if !ok {
+        log("SDL_CreateWindowAndRenderer: %\n", to_string(SDL_GetError()));
         return null, false;
     }
 
     surface: *SDL_Surface;
     texture: *SDL_Texture;
-    ok: bool;
     assets := string.["resources/mage.bmp", "resources/tileset.bmp"];
     for str: assets {
         surface = SDL_LoadBMP(str.data);
@@ -120,10 +113,8 @@ render :: (current: *GameState, previous: *GameState, render_state: *RenderState
         offset := entity_feet_offset(player);
         position := player.position;
         previous_position := previous_player.position;
-        if previous_player.is_interpolating {
-            position = player.interpolated_position;
-            previous_position = previous_player.interpolated_position;
-        }
+        if previous_player.is_interpolating then previous_position = previous_player.interpolated_position;
+        if player.is_interpolating          then position          = player.interpolated_position;
 
         lerped := lerp(previous_position - offset, position - offset, alpha);
         render_rect(view, render_state, player.texture_rect, lerped, texture, true);

@@ -62,16 +62,8 @@ ActionRequest :: struct {
     ignore: bool = false;
 }
 
-ActionResult :: struct {
-    action: ACTION;
-    x: u16;
-    y: u16;
-    uuid: u64 = 0;
-    path: []Vector2i;
-}
-
 copy_game_state :: (dst: *GameState, src: *GameState) {
-    memcpy(*dst.players, *src.players, MAX_PLAYERS * size_of(Entity));
+    dst.players = src.players;
     dst.nr_of_players = src.nr_of_players;
     dst.player_index = src.player_index;
 }
@@ -128,7 +120,7 @@ add_player :: (using game_state: *GameState, uuid: u64, x: u16, y: u16, is_clien
     nr_of_players += 1;
 }
 
-perform_action_request :: (using game_state: *GameState, request: ActionRequest) -> (ActionResult, bool) {
+perform_action_request :: (using game_state: *GameState, request: ActionRequest) {
     player := get_player(game_state, request.uuid);
     if #complete request.action == {
         case .MOVE; {
@@ -158,9 +150,9 @@ perform_action_request :: (using game_state: *GameState, request: ActionRequest)
                 }
 
                 log("perform_action_request result: %, %, %\n", path, player.position, player_grid);
+            } else {
+                player.current_path_index = -1;
             }
-
-            return ActionResult.{ action=.MOVE, path=path, uuid=request.uuid }, true;
         }
 
         case .MOVE_CORRECTION; {
@@ -198,8 +190,6 @@ perform_action_request :: (using game_state: *GameState, request: ActionRequest)
             }
         }
     }
-
-    return ActionResult.{}, false;
 }
 
 simulate :: (using game_state: *GameState, dt: float32) {
