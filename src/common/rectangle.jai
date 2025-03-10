@@ -48,4 +48,4 @@ rect_contains :: (r: IntRect, p: Vector2i) -> bool { return p.x >= r.x && p.x <=
 rect_contains :: (r: Rect, p: Vector2i)    -> bool { return rect_contains(r,  Vector2.{ xx p.x, xx p.y }); }
 rect_contains :: (r: IntRect, p: Vector2)  -> bool { return rect_contains(r, Vector2i.{ xx p.x, xx p.y }); }
 
-to_SDL_FRect :: (rect: Rect) -> SDL_FRect { return SDL_FRect.{ x=rect.x, y=rect.y, w=rect.w, h=rect.h}; }
+to_raylib_rect :: (rect: Rect) -> Rectangle { return Rectangle.{ x=rect.x, y=rect.y, width=rect.w, height=rect.h}; }

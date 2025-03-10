@@ -48,13 +48,6 @@ AppState :: struct {
 }
 
 init_app :: (args: []string) -> (AppState, bool) {
-
-    SDL_Init(
-        SDL_INIT_AUDIO    |
-        SDL_INIT_VIDEO    |
-        SDL_INIT_EVENTS
-    );
-
     render_state, render_ok := make_render_state();
     if !render_ok return .{}, false;
 
@@ -72,11 +65,7 @@ init_app :: (args: []string) -> (AppState, bool) {
 
 quit_app :: (using state: *AppState) {
     if network_manager deinit(network_manager);
+    CloseWindow();
 
-    if render_state {
-        if render_state.window    SDL_DestroyWindow(render_state.window);
-        if render_state.renderer  SDL_DestroyRenderer(render_state.renderer);
-    }
-    SDL_Quit();
     exit(0);
 }
