@@ -15,7 +15,7 @@ fast_forward_state :: (start: s16, end: s16) {
     ticks := state_index_diff(start, end);
     log("fastforward %: %-%\n", ticks, start, end);
     current := start;
-    for 0..ticks-1 {
+    for 0..ticks { // @NOTE: this will iterate atleast once!
         simulate(*GAME_STATES[current], FRAMETIME);
         next := next_state_index(current);
 
@@ -25,7 +25,7 @@ fast_forward_state :: (start: s16, end: s16) {
 }
 
 fast_forward_state_with_request :: (start: s16, end: s16, request: ActionRequest) {
-    memcpy(*GAME_STATES[start], *GAME_STATES[prev_state_index(start)], size_of(GameState));
+    copy_game_state(*GAME_STATES[start], *GAME_STATES[prev_state_index(start)]);
     add_action(*GAME_STATES[start], request);
 
     fast_forward_state(start, end);

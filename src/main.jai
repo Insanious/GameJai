@@ -29,7 +29,7 @@ process_messages :: (app: *AppState) {
                 game_state := *GAME_STATES[msg.state_index];
                 action := ActionRequest.{ action=.ADD_PLAYER, point=msg.point, uuid=msg.uuid, b_value=(msg.uuid == client.clientId), ignore=false };
                 perform_action_request(game_state, action);
-                fast_forward_state(msg.state_index, next_state_index(app.current));
+                fast_forward_state(msg.state_index, app.current);
             }
 
             case .CLIENT_CONNECT_RESPONSE; { // sync game state index here for now
@@ -61,7 +61,7 @@ process_messages :: (app: *AppState) {
                 action := ActionRequest.{ action=.MOVE_CORRECTION, uuid=msg.uuid, point=msg.point, path=msg.path, count=msg.count };
                 perform_action_request(game_state, action); // correct the move from the server message
 
-                fast_forward_state(msg.state_index, next_state_index(app.current)); // fast forward as if nothing happened
+                fast_forward_state(msg.state_index, app.current); // fast forward as if nothing happened
 
                 if client.clientId != msg.uuid {
                     player = get_player(*GAME_STATES[app.current], msg.uuid);
