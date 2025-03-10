@@ -49,7 +49,7 @@ process_messages :: (app: *AppState) {
                     response_data := PlayerMoveResponseData.{ msg.state_index, uuid, msg.point, player.current_path_index+1, player.path };
                     broadcast(server, .PLAYER_MOVE_RESPONSE, PlayerMoveResponseMessage, response_data);
 
-                    fast_forward_state_with_request(msg.state_index, next_state_index(app.current), request);
+                    fast_forward_state_with_request(msg.state_index, app.current, request);
                 }
 
                 case .CLIENT_CONNECT; {

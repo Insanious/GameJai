@@ -15,7 +15,7 @@ fast_forward_state :: (start: s16, end: s16) {
     ticks := state_index_diff(start, end);
     log("fastforward %: %-%\n", ticks, start, end);
     current := start;
-    for 0..ticks-1 {
+    for 0..ticks { // @NOTE: This will iterate atleast once!
         simulate(*GAME_STATES[current], FRAMETIME);
         next := next_state_index(current);
 
