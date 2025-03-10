@@ -1,6 +1,6 @@
 #import "Basic";
-#import "SDL3";
 #import "Math";
+#import "raylib";
 #import "Random";
 #import "Yojimbo"()(ENABLE_LOGGING=true);
 #import "IPAddress"()(ENABLE_LOGGING=true);
@@ -145,30 +145,24 @@ main :: () {
     if !ok
         quit_app(*app);
 
-    event: SDL_Event;
     previous_input: InputState;
     accumulated_input: InputState;
     game_state: *GameState;
 
-    while true {
+    while !WindowShouldClose() {
         reset_temporary_storage();
-
-        while SDL_PollEvent(*event)
-            input(*accumulated_input, *previous_input, *event);
-
-        if accumulated_input.exit == true break;
-
-        if accumulated_input.r {
-            init_world(*WORLD);
-            accumulated_input.r = false;
-        }
 
         delta := clock_reset(*app.clock);
         app.accumulator += delta;
         num_ticks := cast(u8, floor(app.accumulator / FRAMETIME));
 
-        update_view(*app.view, accumulated_input, delta);
-        accumulated_input.scroll_delta = 0;
+        check_input(*accumulated_input, *previous_input);
+        update_view(*app.view, *accumulated_input, delta);
+
+        if accumulated_input.reset {
+            #if !CLIENT init_world(*WORLD);
+            accumulated_input.reset = false;
+        }
 
         #if CLIENT {
             app.network_manager.apollo_time += to_apollo(delta);
@@ -177,12 +171,11 @@ main :: () {
         }
 
         if num_ticks > 0 {
-            #if CLIENT { process_messages(*app); }
+            #if CLIENT process_messages(*app);
 
-            SDL_GetMouseState(xx *accumulated_input.mouse_position.x, xx *accumulated_input.mouse_position.y);
+            accumulated_input.mouse_position = GetMousePosition();
             game_actions := convert_input_to_actions(*accumulated_input, *GAME_STATES[app.current],, temp);
 
-            app.accumulator -= FRAMETIME * xx num_ticks;
             for 0..num_ticks-1 {
                 previous := app.current;
                 app.current = next_state_index(app.current);
@@ -200,16 +193,15 @@ main :: () {
                 simulate(game_state, FRAMETIME);
             }
             app.previous = prev_state_index(app.current, num_ticks);
+            app.accumulator -= FRAMETIME * xx num_ticks;
 
             memcpy(*previous_input, *accumulated_input, size_of(InputState));
 
-            #if CLIENT {
-                send_actions_to_server(*app, game_actions);
-            }
+            #if CLIENT send_actions_to_server(*app, game_actions);
         }
 
-        alpha := cast(float32) clamp(app.accumulator / FRAMETIME, 0.0, 1.0);
-        render(*GAME_STATES[app.current], *GAME_STATES[app.previous], app.render_state, app.view, alpha);
+        app.render_state.alpha = cast(float32) clamp(app.accumulator / FRAMETIME, 0.0, 1.0);
+        render(*GAME_STATES[app.current], *GAME_STATES[app.previous], app.render_state, app.view);
     }
 
     quit_app(*app);
