@@ -44,21 +44,38 @@ Entity :: struct {
     is_client := false;
 }
 
-ACTION :: enum u16 {
-    MOVE;
-    MOVE_CORRECTION;
-    ADD_PLAYER;
-    CLICK;
+ActionResult :: struct {
+    RESULT :: enum u16 {
+        DONT_CARE;
+        MOVE;
+        ADD_PLAYER;
+        CLAIM_AREA;
+    }
+    kind: RESULT;
+
+    network_id: u32 = 0;
 }
 
 ActionRequest :: struct {
+    ACTION :: enum u16 {
+        MOVE;
+        MOVE_CORRECTION;
+        ADD_PLAYER;
+        CLICK;
+        CLAIM_AREA;
+    }
     action: ACTION;
+
+    result: ActionResult;
+
     uuid: u64 = 0;
     point: Vector2i;
+    position: Vector2;
     path: []Vector2i;
     count: s64 = 0;
     b_value: bool = false;
     ignore: bool = false;
+    network_id: u32 = 0;
 }
 
 copy_game_state :: (dst: *GameState, src: *GameState) {
@@ -85,7 +102,7 @@ add_action :: (using game_state: *GameState, action: ActionRequest) {
 
 remove_action :: (using game_state: *GameState, action: ActionRequest) {
     if action.action == {
-        case .MOVE; {
+        case .MOVE;
             for 0..nr_of_actions-1 {
                 if action.point == actions[it].point && action.uuid == actions[it].uuid {
                     actions[it] = actions[nr_of_actions-1];
@@ -94,9 +111,16 @@ remove_action :: (using game_state: *GameState, action: ActionRequest) {
                 }
             }
 
-            log("couldn't find action in actions: %, %\n", action, actions);
-        }
+        case .CLICK;
+            for 0..nr_of_actions-1 {
+                if action.position == actions[it].position && action.uuid == actions[it].uuid {
+                    actions[it] = actions[nr_of_actions-1];
+                    nr_of_actions -= 1;
+                    return;
+                }
+            }
     }
+    log("couldn't find action in actions: %, %\n", action, actions);
 }
 
 get_player :: (using game_state: *GameState, uuid: u64) -> *Entity {
@@ -110,7 +134,7 @@ get_player :: (using game_state: *GameState, uuid: u64) -> *Entity {
 }
 
 add_player :: (using game_state: *GameState, uuid: u64, point: Vector2i, is_client: bool) {
-    log("is_client: %\n", is_client);
+    assert(nr_of_players != MAX_PLAYERS-1, "add_player: nr_of_players == MAX_PLAYERS-1");
     players[nr_of_players] = Entity.{ position=map_to_screen(point), uuid=uuid, is_client=is_client };
 
     if is_client
@@ -119,7 +143,7 @@ add_player :: (using game_state: *GameState, uuid: u64, point: Vector2i, is_clie
     nr_of_players += 1;
 }
 
-perform_action_request :: (using game_state: *GameState, request: ActionRequest) {
+perform_action_request :: (using game_state: *GameState, request: *ActionRequest) {
     player := get_player(game_state, request.uuid);
     if #complete request.action == {
         case .MOVE; {
@@ -147,6 +171,8 @@ perform_action_request :: (using game_state: *GameState, request: ActionRequest)
                     player.path[it_index] = it;
                     WORLD.tiles[it.y][it.x].flags |= .PATH;
                 }
+
+                request.result = .{ kind=.MOVE };
             } else {
                 player.current_path_index = -1;
             }
@@ -170,21 +196,41 @@ perform_action_request :: (using game_state: *GameState, request: ActionRequest)
                 player.state = .RUNNING;
             else
                 player.state = .IDLE;
+
+            request.result = .{ kind=.DONT_CARE };
         }
 
         case .ADD_PLAYER; {
             if !request.ignore
                 add_player(game_state, request.uuid, request.point, request.b_value);
+
+            request.result = .{ kind=.ADD_PLAYER };
         }
 
         case .CLICK; {
-            mouse_pos: = mouse_to_screen(game_state);
             for 0..MAX_AREAS-1 {
                 area := *WORLD.areas[it];
-                if rect_contains(area.entrance_btn, mouse_pos) {
+                if rect_contains(area.entrance_btn, request.position) {
                     for index: area.entrance WORLD.tiles[index.y][index.x].flags |= .WHITELISTED;
+                    area.owner_uuid = request.uuid;
+
+                    request.result = .{ kind=.CLAIM_AREA, network_id=area.network_id };
+                    return;
                 }
             }
+            request.result = .{ kind=.DONT_CARE };
+        }
+
+        case .CLAIM_AREA; {
+            for 0..MAX_AREAS-1 {
+                area := *WORLD.areas[it];
+                if area.network_id == request.network_id {
+                    for index: area.entrance WORLD.tiles[index.y][index.x].flags |= .WHITELISTED;
+                    area.owner_uuid = request.uuid;
+                    return;
+                }
+            }
+            assert(false, "no area where area.network_id == request.network_id");
         }
     }
 }
@@ -199,7 +245,7 @@ simulate :: (using game_state: *GameState, dt: float32) {
     if in_bounds(mouse_grid)
         WORLD.tiles[mouse_grid.y][mouse_grid.x].flags |= .HOVERED;
 
-    for 0..nr_of_actions-1 perform_action_request(game_state, actions[it]);
+    for 0..nr_of_actions-1 perform_action_request(game_state, *actions[it]);
 
     for 0..nr_of_players-1 {
         player := *players[it];

@@ -31,6 +31,42 @@ serialize_struct :: (stream: *Stream, rect: *IntRect, min: Vector2i, max: Vector
     return true;
 }
 
+PlayerClaimAreaResponseData :: struct {
+    state_index: s16;
+    uuid: u64;
+    network_id: u32;
+    position: Vector2;
+}
+PlayerClaimAreaResponseMessage :: struct {
+    using #as base: Message;
+    using data: PlayerClaimAreaResponseData;
+
+    serialize :: (stream: *Stream, message: *Message) -> bool {
+        m := cast(*PlayerClaimAreaResponseMessage) message;
+        serialize_bits(stream, *m.state_index, 16);
+        serialize_bits(stream, *m.uuid, 64);
+        serialize_bits(stream, *m.network_id, 32);
+        serialize_struct(stream, *m.position);
+        return true;
+    }
+}
+
+PlayerClickWorldData :: struct {
+    state_index: s16;
+    position: Vector2;
+}
+PlayerClickWorldMessage :: struct {
+    using #as base: Message;
+    using data: PlayerClickWorldData;
+
+    serialize :: (stream: *Stream, message: *Message) -> bool {
+        m := cast(*PlayerClickWorldMessage) message;
+        serialize_bits(stream, *m.state_index, 16);
+        serialize_struct(stream, *m.position);
+        return true;
+    }
+}
+
 PlayerMoveResponseData :: struct {
     state_index: s16;
     uuid: u64;
@@ -42,21 +78,18 @@ PlayerMoveResponseMessage :: struct {
     using #as base: Message;
     using data: PlayerMoveResponseData;
 
-    serializer :: MessageSerializer.{
-        create = () -> *Message { return New(PlayerMoveResponseMessage); },
-        serialize = (stream: *Stream, message: *Message) -> bool {
-            m := cast(*PlayerMoveResponseMessage) message;
-            serialize_bits(stream, *m.state_index, 16);
-            serialize_bits(stream, *m.uuid, 64);
-            serialize_struct(stream, *m.point, MIN_TILES, MAX_TILES);
+    serialize :: (stream: *Stream, message: *Message) -> bool {
+        m := cast(*PlayerMoveResponseMessage) message;
+        serialize_bits(stream, *m.state_index, 16);
+        serialize_bits(stream, *m.uuid, 64);
+        serialize_struct(stream, *m.point, MIN_TILES, MAX_TILES);
 
-            serialize_bits(stream, *m.count, 16);
-            for 0..m.count-1
-                serialize_struct(stream, *m.path[it], MIN_TILES, MAX_TILES);
+        serialize_bits(stream, *m.count, 16);
+        for 0..m.count-1
+            serialize_struct(stream, *m.path[it], MIN_TILES, MAX_TILES);
 
-            return true;
-        }
-    };
+        return true;
+    }
 }
 
 PlayerMoveData :: struct {
@@ -67,15 +100,12 @@ PlayerMoveMessage :: struct {
     using #as base: Message;
     using data: PlayerMoveData;
 
-    serializer :: MessageSerializer.{
-        create = () -> *Message { return New(PlayerMoveMessage); },
-        serialize = (stream: *Stream, message: *Message) -> bool {
-            m := cast(*PlayerMoveMessage) message;
-            serialize_bits(stream, *m.state_index, 16);
-            serialize_struct(stream, *m.point, MIN_TILES, MAX_TILES);
-            return true;
-        }
-    };
+    serialize :: (stream: *Stream, message: *Message) -> bool {
+        m := cast(*PlayerMoveMessage) message;
+        serialize_bits(stream, *m.state_index, 16);
+        serialize_struct(stream, *m.point, MIN_TILES, MAX_TILES);
+        return true;
+    }
 }
 
 NewPlayerData :: struct {
@@ -87,16 +117,13 @@ NewPlayerMessage :: struct {
     using #as base: Message;
     using data: NewPlayerData;
 
-    serializer :: MessageSerializer.{
-        create = () -> *Message { return New(NewPlayerMessage); },
-        serialize = (stream: *Stream, message: *Message) -> bool {
-            m := cast(*NewPlayerMessage) message;
-            serialize_bits(stream, *m.state_index, 16);
-            serialize_bits(stream, *m.uuid, 64);
-            serialize_struct(stream, *m.point, MIN_TILES, MAX_TILES);
-            return true;
-        }
-    };
+    serialize :: (stream: *Stream, message: *Message) -> bool {
+        m := cast(*NewPlayerMessage) message;
+        serialize_bits(stream, *m.state_index, 16);
+        serialize_bits(stream, *m.uuid, 64);
+        serialize_struct(stream, *m.point, MIN_TILES, MAX_TILES);
+        return true;
+    }
 }
 
 ClientConnectMessage :: struct {
@@ -104,14 +131,11 @@ ClientConnectMessage :: struct {
 
     handshake: u16 = 69;
 
-    serializer :: MessageSerializer.{
-        create = () -> *Message { return New(ClientConnectMessage); },
-        serialize = (stream: *Stream, message: *Message) -> bool {
-            m := cast(*ClientConnectMessage) message;
-            serialize_bits(stream, *m.handshake, 16);
-            return true;
-        }
-    };
+    serialize :: (stream: *Stream, message: *Message) -> bool {
+        m := cast(*ClientConnectMessage) message;
+        serialize_bits(stream, *m.handshake, 16);
+        return true;
+    }
 }
 
 ClientConnectResponseData :: struct {
@@ -125,51 +149,75 @@ ClientConnectResponseMessage :: struct {
     using #as base: Message;
     using data: ClientConnectResponseData;
 
-    serializer :: MessageSerializer.{
-        create = () -> *Message { return New(ClientConnectResponseMessage); },
-        serialize = (stream: *Stream, message: *Message) -> bool {
-            m := cast(*ClientConnectResponseMessage) message;
-            serialize_bits(stream, *m.state_index, 16);
-            serialize_bits(stream, *m.nr_of_players, 32);
-            for 0..m.nr_of_players-1 {
-                player := *m.players[it];
-                serialize_bits(stream, *player.uuid, 64);
-                serialize_float(stream, *player.speed);
-                serialize_float(stream, *player.position.x);
-                serialize_float(stream, *player.position.y);
-            }
-
-            for y: 0..TILES_Y-1
-                for x: 0..TILES_X-1
-                    serialize_bits(stream, *m.tile_flags[y][x], 8);
-
-            for 0..MAX_AREAS-1 {
-                serialize_struct(stream, *m.areas[it].rect, MIN_TILES, MAX_TILES);
-                serialize_struct(stream, *m.areas[it].entrance_btn);
-                for entrance_idx: 0..ENTRANCE_SIZE-1
-                    serialize_struct(stream, *m.areas[it].entrance[entrance_idx], MIN_TILES, MAX_TILES);
-            }
-
-            return true;
+    serialize :: (stream: *Stream, message: *Message) -> bool {
+        m := cast(*ClientConnectResponseMessage) message;
+        serialize_bits(stream, *m.state_index, 16);
+        serialize_bits(stream, *m.nr_of_players, 32);
+        for 0..m.nr_of_players-1 {
+            player := *m.players[it];
+            serialize_bits(stream, *player.uuid, 64);
+            serialize_float(stream, *player.speed);
+            serialize_float(stream, *player.position.x);
+            serialize_float(stream, *player.position.y);
         }
-    };
+
+        for y: 0..TILES_Y-1
+            for x: 0..TILES_X-1
+                serialize_bits(stream, *m.tile_flags[y][x], 8);
+
+        for 0..MAX_AREAS-1 {
+            serialize_bits(stream, *m.areas[it].network_id, 32);
+            serialize_struct(stream, *m.areas[it].rect, MIN_TILES, MAX_TILES);
+            serialize_struct(stream, *m.areas[it].entrance_btn);
+            serialize_struct(stream, *m.areas[it].entrance_btn);
+            for entrance_idx: 0..ENTRANCE_SIZE-1
+                serialize_struct(stream, *m.areas[it].entrance[entrance_idx], MIN_TILES, MAX_TILES);
+        }
+
+        return true;
+    }
 }
 
 GameMessageType :: enum u16 {
+    PLAYER_CLAIM_AREA_RESPONSE;
+    PLAYER_CLICK_WORLD;
     PLAYER_MOVE_RESPONSE;
     PLAYER_MOVE;
     NEW_PLAYER;
     CLIENT_CONNECT;
     CLIENT_CONNECT_RESPONSE;
+    NUM_MESSAGE_TYPES;
 }
 
-GameMessageFactory: MessageFactory : MessageSerializer.[
-    PlayerMoveResponseMessage.serializer,
-    PlayerMoveMessage.serializer,
-    NewPlayerMessage.serializer,
-    ClientConnectMessage.serializer,
-    ClientConnectResponseMessage.serializer,
-];
+GameMessageFactory :: MessageFactory.{
+    max_message_type = xx GameMessageType.NUM_MESSAGE_TYPES,
+    create = (message_type: u16) -> *Message {
+        type := message_type.(GameMessageType);
+        if #complete type == {
+            case .PLAYER_CLAIM_AREA_RESPONSE; return New(PlayerClaimAreaResponseMessage);
+            case .PLAYER_CLICK_WORLD;         return New(PlayerClickWorldMessage);
+            case .PLAYER_MOVE_RESPONSE;       return New(PlayerMoveResponseMessage);
+            case .PLAYER_MOVE;                return New(PlayerMoveMessage);
+            case .NEW_PLAYER;                 return New(NewPlayerMessage);
+            case .CLIENT_CONNECT;             return New(ClientConnectMessage);
+            case .CLIENT_CONNECT_RESPONSE;    return New(ClientConnectResponseMessage);
+            case .NUM_MESSAGE_TYPES;          return null;
+        }
+    },
+    serialize = (stream: *Stream, message: *Message) -> bool {
+        type := message.type.(GameMessageType);
+        if #complete type == {
+            case .PLAYER_CLAIM_AREA_RESPONSE; return PlayerClaimAreaResponseMessage.serialize(stream, message);
+            case .PLAYER_CLICK_WORLD;         return PlayerClickWorldMessage.serialize(stream, message);
+            case .PLAYER_MOVE_RESPONSE;       return PlayerMoveResponseMessage.serialize(stream, message);
+            case .PLAYER_MOVE;                return PlayerMoveMessage.serialize(stream, message);
+            case .NEW_PLAYER;                 return NewPlayerMessage.serialize(stream, message);
+            case .CLIENT_CONNECT;             return ClientConnectMessage.serialize(stream, message);
+            case .CLIENT_CONNECT_RESPONSE;    return ClientConnectResponseMessage.serialize(stream, message);
+            case .NUM_MESSAGE_TYPES;          return false;
+        }
+    }
+};
 
 GameChannel :: enum u16 {
     RELIABLE;
@@ -188,11 +236,14 @@ NetworkManager :: struct {
 
 log_message_type :: (prefix: string, type: GameMessageType) {
     if #complete type == {
-        case .PLAYER_MOVE_RESPONSE;     log("% PLAYER_MOVE_RESPONSE\n", prefix);
-        case .PLAYER_MOVE;              log("% PLAYER_MOVE\n", prefix);
-        case .NEW_PLAYER;               log("% NEW_PLAYER\n", prefix);
-        case .CLIENT_CONNECT;           log("% CLIENT_CONNECT\n", prefix);
-        case .CLIENT_CONNECT_RESPONSE;  log("% CLIENT_CONNECT_RESPONSE\n", prefix);
+        case .PLAYER_CLAIM_AREA_RESPONSE; log("% PLAYER_CLAIM_AREA_RESPONSE\n", prefix);
+        case .PLAYER_CLICK_WORLD;         log("% PLAYER_CLICK_WORLD\n",         prefix);
+        case .PLAYER_MOVE_RESPONSE;       log("% PLAYER_MOVE_RESPONSE\n",       prefix);
+        case .PLAYER_MOVE;                log("% PLAYER_MOVE\n",                prefix);
+        case .NEW_PLAYER;                 log("% NEW_PLAYER\n",                 prefix);
+        case .CLIENT_CONNECT;             log("% CLIENT_CONNECT\n",             prefix);
+        case .CLIENT_CONNECT_RESPONSE;    log("% CLIENT_CONNECT_RESPONSE\n",    prefix);
+        case .NUM_MESSAGE_TYPES;          log("% NUM_MESSAGE_TYPES\n",          prefix);
     }
 }
 
@@ -246,30 +297,42 @@ make_network_manager :: (using network_manager: *NetworkManager) {
     }
 }
 
-network_manager_update :: (using network_manager: *NetworkManager) -> bool {
-    #if SERVER {
-        server_send_packets(server);
-        server_receive_packets(server);
-        server_advance_time(server, apollo_time);
+network_update :: (server: *Server, time: Apollo_Time) -> bool {
+    server_send_packets(server);
+    server_receive_packets(server);
+    server_advance_time(server, time);
 
-        if !server.running
-            return false;
-    }
+    return server.running;
+}
 
-    #if CLIENT {
-        client_send_packets(client);
-        client_receive_packets(client);
-        client_advance_time(client, apollo_time);
+network_update :: (client: *Client, time: Apollo_Time) -> bool {
+    client_send_packets(client);
+    client_receive_packets(client);
+    client_advance_time(client, time);
 
-        if client.clientState == .Disconnected
-            return false;
-    }
+    return client.clientState != .Disconnected;
+}
 
-    return true;
+send_message :: (server: *Server, client: int, type: GameMessageType, $message_type: Type, data: $T) {
+    message := cast(*message_type) server_create_message(server, client, xx type);
+    message.data = data;
+    server_send_message(server, client, xx GameChannel.RELIABLE, message);
+}
+
+send_message :: (client: *Client, type: GameMessageType, $message_type: Type, data: $T) {
+    message := cast(*message_type) client_create_message(client, xx type);
+    message.data = data;
+    client_send_message(client, xx GameChannel.RELIABLE, message);
 }
 
 deinit :: (using network_manager: *NetworkManager) {
     #if SERVER server_stop(server);
 
     #if CLIENT client_disconnect(client);
+}
+
+current_network_id: u32 = 0;
+get_new_network_id :: () -> u32 {
+    current_network_id += 1;
+    return current_network_id;
 }

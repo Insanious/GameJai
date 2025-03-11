@@ -33,6 +33,9 @@ Area :: struct {
     rect: IntRect;
     entrance: [ENTRANCE_SIZE]Vector2i;
     entrance_btn: Rect;
+
+    owner_uuid: u64 = 0;
+    network_id: u32 = 0;
 }
 
 random_span :: (min: u64, max: u64) -> u64 { return random_get() % (max + 1 - min) + min; }
@@ -82,7 +85,7 @@ random_area :: () -> Area {
     mid := map_to_screen(entrance[ENTRANCE_SIZE/2]);
     entrance_btn: Rect = .{x=xx (mid.x + 10), y=xx (mid.y - 5), w=10, h=10};
 
-    return Area.{ rect=rect, entrance=entrance, entrance_btn=entrance_btn};
+    return Area.{ rect=rect, entrance=entrance, entrance_btn=entrance_btn, network_id=get_new_network_id() };
 }
 
 init_world :: (using world: *World) {

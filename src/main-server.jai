@@ -13,17 +13,12 @@
 #load "network.jai";
 #load "infrastructure.jai";
 
+
 broadcast :: (server: *Server, type: GameMessageType, $message_type: Type, data: $T) {
     for 0..MAX_CLIENTS-1 {
         if !server_is_client_connected(server, it) continue;
-        send_to_client(server, it, type, message_type, data);
+        send_message(server, it, type, message_type, data);
     }
-}
-
-send_to_client :: (server: *Server, client: int, type: GameMessageType, $message_type: Type, data: $T) {
-    msg := cast(*message_type) server_create_message(server, client, xx type);
-    msg.data = data;
-    server_send_message(server, client, xx GameChannel.RELIABLE, msg);
 }
 
 process_messages :: (app: *AppState) {
@@ -39,10 +34,20 @@ process_messages :: (app: *AppState) {
             log_message_type("Got message", cast(GameMessageType) message.type);
 
             if cast(GameMessageType) message.type == {
+                case .PLAYER_CLICK_WORLD; {
+                    msg := cast(*PlayerClickWorldMessage) message;
+                    request := ActionRequest.{ action=.CLICK, position=msg.position, uuid=uuid };
+                    perform_clean_action_request(*dummy_state, msg.state_index, *request);
+                    assert(request.result.kind == .CLAIM_AREA, "request.result != .CLAIM_AREA");
+                    assert(request.result.network_id != 0, "request.result.network_id == 0");
+                    response_data := PlayerClaimAreaResponseData.{ msg.state_index, uuid, request.result.network_id, msg.position };
+                    broadcast(server, .PLAYER_CLAIM_AREA_RESPONSE, PlayerClaimAreaResponseMessage, response_data);
+                }
+
                 case .PLAYER_MOVE; {
                     msg := cast(*PlayerMoveMessage) message;
                     request := ActionRequest.{ action=.MOVE, point=msg.point, uuid=uuid };
-                    perform_clean_action_request(*dummy_state, msg.state_index, request);
+                    perform_clean_action_request(*dummy_state, msg.state_index, *request);
                     player := get_player(*dummy_state, uuid);
                     assert(player != null);
 
@@ -58,7 +63,7 @@ process_messages :: (app: *AppState) {
                     for y: 0..TILES_Y-1
                         for x: 0..TILES_X-1
                             response_data.tile_flags[y][x] = WORLD.tiles[y][x].flags;
-                    send_to_client(server, it, .CLIENT_CONNECT_RESPONSE, ClientConnectResponseMessage, response_data);
+                    send_message(server, it, .CLIENT_CONNECT_RESPONSE, ClientConnectResponseMessage, response_data);
 
                     new_player_data := NewPlayerData.{ app.current, uuid, Vector2i.{ xx(random_get() % TILES_X), xx(random_get() % TILES_Y) } };
                     broadcast(server, .NEW_PLAYER, NewPlayerMessage, new_player_data);
@@ -91,7 +96,7 @@ main :: () {
         check_input(*input_state, *dummy_input);
         update_view(*app.view, *input_state, delta);
 
-        if !network_manager_update(app.network_manager)
+        if !network_update(app.network_manager.server, app.network_manager.apollo_time)
             break;
 
         num_ticks := cast(u8, floor(app.accumulator / FRAMETIME));

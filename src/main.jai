@@ -28,7 +28,7 @@ process_messages :: (app: *AppState) {
 
                 game_state := *GAME_STATES[msg.state_index];
                 action := ActionRequest.{ action=.ADD_PLAYER, point=msg.point, uuid=msg.uuid, b_value=(msg.uuid == client.clientId), ignore=false };
-                perform_action_request(game_state, action);
+                perform_action_request(game_state, *action);
                 fast_forward_state(msg.state_index, app.current);
             }
 
@@ -59,7 +59,7 @@ process_messages :: (app: *AppState) {
                      remove_action(game_state, ActionRequest.{ action=.MOVE, uuid=msg.uuid, point=msg.point });
 
                 action := ActionRequest.{ action=.MOVE_CORRECTION, uuid=msg.uuid, point=msg.point, path=msg.path, count=msg.count };
-                perform_action_request(game_state, action); // correct the move from the server message
+                perform_action_request(game_state, *action); // correct the move from the server message
 
                 fast_forward_state(msg.state_index, app.current); // fast forward as if nothing happened
 
@@ -70,6 +70,20 @@ process_messages :: (app: *AppState) {
                     player.interpolated_position = position_to_interpolate_to;
                 }
             }
+
+            case .PLAYER_CLAIM_AREA_RESPONSE; {
+                msg := cast(*PlayerClaimAreaResponseMessage) message;
+
+                game_state := *GAME_STATES[msg.state_index];
+                copy_game_state(game_state, *GAME_STATES[prev_state_index(msg.state_index)]); // reset msg state
+
+                if client.clientId == msg.uuid // remove the move done by the local client
+                     remove_action(game_state, ActionRequest.{ action=.CLICK, uuid=msg.uuid, position=msg.position });
+
+                action := ActionRequest.{ action=.CLAIM_AREA, uuid=msg.uuid, network_id=msg.network_id };
+                perform_action_request(game_state, *action);
+                fast_forward_state(msg.state_index, app.current);
+            }
         }
 
         client_release_message(client, message);
@@ -77,20 +91,22 @@ process_messages :: (app: *AppState) {
     }
 }
 
-send_actions_to_server :: (app: *AppState, actions: []ActionRequest) {
+send_actions_to_server :: (app: *AppState, game_state: *GameState) {
     using app.network_manager;
-    for actions {
-        if it.action == {
-            case .MOVE; {
-                message := cast(*PlayerMoveMessage) client_create_message(client, xx GameMessageType.PLAYER_MOVE);
-                message.data = PlayerMoveData.{ state_index=app.current, point=it.point };
-                client_send_message(client, xx GameChannel.RELIABLE, message);
-            }
+    for 0..game_state.nr_of_actions-1 {
+        action := game_state.actions[it];
+        if #complete action.result.kind == {
+            case .MOVE;
+                send_message(client, .PLAYER_MOVE, PlayerMoveMessage, PlayerMoveData.{ app.current, action.point });
 
-            case .ADD_PLAYER; {
+            case .ADD_PLAYER;
                 message := cast(*ClientConnectMessage) client_create_message(app.network_manager.client, xx GameMessageType.CLIENT_CONNECT);
                 client_send_message(app.network_manager.client, xx GameChannel.RELIABLE, message);
-            }
+
+            case .CLAIM_AREA;
+                send_message(client, .PLAYER_CLICK_WORLD, PlayerClickWorldMessage, PlayerClickWorldData.{ state_index=app.current, position=action.position });
+
+            case .DONT_CARE;
         }
     }
 }
@@ -111,9 +127,10 @@ convert_input_to_actions :: (input_state: *InputState, game_state: *GameState) -
     }
 
     if input_state.LMB_pressed {
+        mouse_pos: = mouse_to_screen(game_state);
         uuid: u64 = 69420;
         if game_state.player_index != -1 then uuid = game_state.players[game_state.player_index].uuid;
-        array_add(*actions, ActionRequest.{ action=.CLICK, uuid=uuid });
+        array_add(*actions, ActionRequest.{ action=.CLICK, position=mouse_pos, uuid=uuid });
         input_state.LMB_pressed = false;
     }
 
@@ -166,7 +183,7 @@ main :: () {
 
         #if CLIENT {
             app.network_manager.apollo_time += to_apollo(delta);
-            if !network_manager_update(app.network_manager)
+            if !network_update(app.network_manager.client, app.network_manager.apollo_time)
                 break;
         }
 
@@ -197,7 +214,10 @@ main :: () {
 
             memcpy(*previous_input, *accumulated_input, size_of(InputState));
 
-            #if CLIENT send_actions_to_server(*app, game_actions);
+            #if CLIENT {
+                // since only the first tick will perform actions, take the next of the previous
+                send_actions_to_server(*app, *GAME_STATES[next_state_index(app.previous)]);
+            }
         }
 
         app.render_state.alpha = cast(float32) clamp(app.accumulator / FRAMETIME, 0.0, 1.0);
