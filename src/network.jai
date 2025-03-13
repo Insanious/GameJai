@@ -126,9 +126,10 @@ NewPlayerMessage :: struct {
     }
 }
 
+ClientConnectData :: struct {}
 ClientConnectMessage :: struct {
     using #as base: Message;
-
+    using data: ClientConnectData;
     handshake: u16 = 69;
 
     serialize :: (stream: *Stream, message: *Message) -> bool {
@@ -230,8 +231,10 @@ NetworkManager :: struct {
     private_key: [KeyBytes] u8;
     server_address : IPAddress;
 
-    server: *Server = null;
-    client: *Client = null;
+    union {
+        server: *Server = null;
+        client: *Client = null;
+    }
 }
 
 log_message_type :: (prefix: string, type: GameMessageType) {
@@ -245,84 +248,6 @@ log_message_type :: (prefix: string, type: GameMessageType) {
         case .CLIENT_CONNECT_RESPONSE;    log("% CLIENT_CONNECT_RESPONSE\n",    prefix);
         case .NUM_MESSAGE_TYPES;          log("% NUM_MESSAGE_TYPES\n",          prefix);
     }
-}
-
-make_server :: (using network_manager: *NetworkManager) {
-    apollo_time = seconds_to_apollo(100);
-    server_address = address_init_v4(SERVER_ADDRESS, SERVER_PORT);
-
-    server = New(Server);
-    server_init(server, private_key, server_address, config, GameMessageFactory, apollo_time);
-    server_start(server, MAX_CLIENTS);
-
-    log("server address is %\n", address_to_string(server_address,, temp));
-}
-
-make_client :: (using network_manager: *NetworkManager) {
-    apollo_time = seconds_to_apollo(100);
-    server_address = address_init_v4(SERVER_ADDRESS, SERVER_PORT);
-
-    client = New(Client);
-    client_id := random_get();
-    log("client_id: %\n", client_id);
-    client_address := address_init_v4("0.0.0.0");
-
-    client_init(client, client_address, config, GameMessageFactory, apollo_time);
-    client_insecure_connect(client, private_key, client_id, server_address);
-
-    log("client address is %\n", address_to_string(client.boundAddress,, temp));
-}
-
-make_network_manager :: (using network_manager: *NetworkManager) {
-    apollo_time = seconds_to_apollo(100);
-    server_address = address_init_v4(SERVER_ADDRESS, SERVER_PORT);
-
-    #if SERVER {
-        server = New(Server);
-        server_init(server, private_key, server_address, config, GameMessageFactory, apollo_time);
-        server_start(server, MAX_CLIENTS);
-
-        log("server address is %\n", address_to_string(server_address,, temp));
-    }
-
-    #if CLIENT {
-        client = New(Client);
-        client_id := random_get();
-        client_address := address_init_v4("0.0.0.0");
-
-        client_init(client, client_address, config, GameMessageFactory, apollo_time);
-        client_insecure_connect(client, private_key, client_id, server_address);
-
-        log("client address is %\n", address_to_string(client.boundAddress,, temp));
-    }
-}
-
-network_update :: (server: *Server, time: Apollo_Time) -> bool {
-    server_send_packets(server);
-    server_receive_packets(server);
-    server_advance_time(server, time);
-
-    return server.running;
-}
-
-network_update :: (client: *Client, time: Apollo_Time) -> bool {
-    client_send_packets(client);
-    client_receive_packets(client);
-    client_advance_time(client, time);
-
-    return client.clientState != .Disconnected;
-}
-
-send_message :: (server: *Server, client: int, type: GameMessageType, $message_type: Type, data: $T) {
-    message := cast(*message_type) server_create_message(server, client, xx type);
-    message.data = data;
-    server_send_message(server, client, xx GameChannel.RELIABLE, message);
-}
-
-send_message :: (client: *Client, type: GameMessageType, $message_type: Type, data: $T) {
-    message := cast(*message_type) client_create_message(client, xx type);
-    message.data = data;
-    client_send_message(client, xx GameChannel.RELIABLE, message);
 }
 
 deinit :: (using network_manager: *NetworkManager) {

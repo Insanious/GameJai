@@ -59,23 +59,16 @@ ActionResult :: struct {
 ActionRequest :: struct {
     ACTION :: enum u16 {
         MOVE;
-        MOVE_CORRECTION;
         ADD_PLAYER;
         CLICK;
-        CLAIM_AREA;
     }
-    action: ACTION;
-
-    result: ActionResult;
+    kind: ACTION;
 
     uuid: u64 = 0;
     point: Vector2i;
     position: Vector2;
-    path: []Vector2i;
-    count: s64 = 0;
     b_value: bool = false;
     ignore: bool = false;
-    network_id: u32 = 0;
 }
 
 copy_game_state :: (dst: *GameState, src: *GameState) {
@@ -101,7 +94,7 @@ add_action :: (using game_state: *GameState, action: ActionRequest) {
 }
 
 remove_action :: (using game_state: *GameState, action: ActionRequest) {
-    if action.action == {
+    if action.kind == {
         case .MOVE;
             for 0..nr_of_actions-1 {
                 if action.point == actions[it].point && action.uuid == actions[it].uuid {
@@ -120,7 +113,9 @@ remove_action :: (using game_state: *GameState, action: ActionRequest) {
                 }
             }
     }
-    log("couldn't find action in actions: %, %\n", action, actions);
+    log("couldn't find action in actions\n");
+    log("%\n", action);
+    for 0..nr_of_actions-1 log("%\n", actions[it]);
 }
 
 get_player :: (using game_state: *GameState, uuid: u64) -> *Entity {
@@ -143,16 +138,16 @@ add_player :: (using game_state: *GameState, uuid: u64, point: Vector2i, is_clie
     nr_of_players += 1;
 }
 
-perform_action_request :: (using game_state: *GameState, request: *ActionRequest) {
+perform_action_request :: (using game_state: *GameState, request: *ActionRequest) -> (ActionResult, bool) {
     player := get_player(game_state, request.uuid);
-    if #complete request.action == {
+    if #complete request.kind == {
         case .MOVE; {
             assert(player != null, tprint("perform_action_request: Found no player with uuid == %", request.uuid));
 
             player_grid := screen_to_map(player.position);
             destination := request.point;
-            assert(in_bounds(player_grid), tprint("perform_action_request: in_bounds(player_grid): %", in_bounds(player_grid)));
-            assert(in_bounds(destination), tprint("perform_action_request: in_bounds(destination): %", in_bounds(destination)));
+            if !in_bounds(player_grid) || !in_bounds(destination)
+                return ActionResult.{}, false;
 
             path := jump_point_search(player_grid, destination, WORLD.tiles,, temp);
             if path.count {
@@ -171,40 +166,18 @@ perform_action_request :: (using game_state: *GameState, request: *ActionRequest
                     player.path[it_index] = it;
                     WORLD.tiles[it.y][it.x].flags |= .PATH;
                 }
-
-                request.result = .{ kind=.MOVE };
             } else {
                 player.current_path_index = -1;
             }
+
+            return ActionResult.{ kind=.MOVE }, true;
         }
 
-        case .MOVE_CORRECTION; {
-            assert(player != null, tprint("perform_action_request: Found no player with uuid == %", request.uuid));
-
-            for tiles: WORLD.tiles
-                for * tile: tiles
-                    tile.flags &= ~.PATH;
-
-            for 0..request.count-1 {
-                vec := request.path[it];
-                player.path[it] = vec;
-                WORLD.tiles[vec.y][vec.x].flags |= .PATH;
-            }
-            player.current_path_index = xx(request.count-1);
-
-            if player.current_path_index >= 0
-                player.state = .RUNNING;
-            else
-                player.state = .IDLE;
-
-            request.result = .{ kind=.DONT_CARE };
-        }
-
-        case .ADD_PLAYER; {
+        case .ADD_PLAYER; { // @TODO: find better solution for this guy...
             if !request.ignore
                 add_player(game_state, request.uuid, request.point, request.b_value);
 
-            request.result = .{ kind=.ADD_PLAYER };
+            return ActionResult.{ kind=.ADD_PLAYER }, true;
         }
 
         case .CLICK; {
@@ -214,25 +187,13 @@ perform_action_request :: (using game_state: *GameState, request: *ActionRequest
                     for index: area.entrance WORLD.tiles[index.y][index.x].flags |= .WHITELISTED;
                     area.owner_uuid = request.uuid;
 
-                    request.result = .{ kind=.CLAIM_AREA, network_id=area.network_id };
-                    return;
+                    return ActionResult.{ kind=.CLAIM_AREA, network_id=area.network_id }, true;
                 }
             }
-            request.result = .{ kind=.DONT_CARE };
-        }
-
-        case .CLAIM_AREA; {
-            for 0..MAX_AREAS-1 {
-                area := *WORLD.areas[it];
-                if area.network_id == request.network_id {
-                    for index: area.entrance WORLD.tiles[index.y][index.x].flags |= .WHITELISTED;
-                    area.owner_uuid = request.uuid;
-                    return;
-                }
-            }
-            assert(false, "no area where area.network_id == request.network_id");
         }
     }
+
+    return ActionResult.{}, false;
 }
 
 simulate :: (using game_state: *GameState, dt: float32) {

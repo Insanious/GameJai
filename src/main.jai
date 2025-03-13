@@ -13,141 +13,43 @@
 #load "common/common.jai";
 #load "network.jai";
 #load "infrastructure.jai";
-
-process_messages :: (app: *AppState) {
-    using app.network_manager;
-    if !client_is_connected(client) return;
-
-    message := client_receive_message(client, xx GameChannel.RELIABLE);
-    while message != null {
-        log_message_type("Got message", cast(GameMessageType) message.type);
-
-        if cast(GameMessageType) message.type == {
-            case .NEW_PLAYER; {
-                msg := cast(*NewPlayerMessage) message;
-
-                game_state := *GAME_STATES[msg.state_index];
-                action := ActionRequest.{ action=.ADD_PLAYER, point=msg.point, uuid=msg.uuid, b_value=(msg.uuid == client.clientId), ignore=false };
-                perform_action_request(game_state, *action);
-                fast_forward_state(msg.state_index, app.current);
-            }
-
-            case .CLIENT_CONNECT_RESPONSE; { // sync game state index here for now
-                msg := cast(*ClientConnectResponseMessage) message;
-
-                app.current = msg.state_index;
-                app.previous = prev_state_index(msg.state_index);
-                GAME_STATES[app.current].nr_of_players = msg.nr_of_players;
-                GAME_STATES[app.current].players = msg.players;
-                WORLD.areas = msg.areas;
-                for y: 0..TILES_Y-1
-                    for x: 0..TILES_X-1
-                        WORLD.tiles[y][x].flags = msg.tile_flags[y][x];
-            }
-
-            case .PLAYER_MOVE_RESPONSE; {
-                msg := cast(*PlayerMoveResponseMessage) message;
-
-                player := get_player(*GAME_STATES[app.current], msg.uuid);
-                assert(player != null, ".PLAYER_MOVE_RESPONSE 1: player == null");
-                position_to_interpolate_to := ifx player.is_interpolating then player.interpolated_position else player.position;
-
-                game_state := *GAME_STATES[msg.state_index];
-                copy_game_state(game_state, *GAME_STATES[prev_state_index(msg.state_index)]); // reset msg state
-
-                if client.clientId == msg.uuid // remove the move done by the local client
-                     remove_action(game_state, ActionRequest.{ action=.MOVE, uuid=msg.uuid, point=msg.point });
-
-                action := ActionRequest.{ action=.MOVE_CORRECTION, uuid=msg.uuid, point=msg.point, path=msg.path, count=msg.count };
-                perform_action_request(game_state, *action); // correct the move from the server message
-
-                fast_forward_state(msg.state_index, app.current); // fast forward as if nothing happened
-
-                if client.clientId != msg.uuid {
-                    player = get_player(*GAME_STATES[app.current], msg.uuid);
-                    assert(player != null, ".PLAYER_MOVE_RESPONSE 2: player == null");
-                    player.is_interpolating = true;
-                    player.interpolated_position = position_to_interpolate_to;
-                }
-            }
-
-            case .PLAYER_CLAIM_AREA_RESPONSE; {
-                msg := cast(*PlayerClaimAreaResponseMessage) message;
-
-                game_state := *GAME_STATES[msg.state_index];
-                copy_game_state(game_state, *GAME_STATES[prev_state_index(msg.state_index)]); // reset msg state
-
-                if client.clientId == msg.uuid // remove the move done by the local client
-                     remove_action(game_state, ActionRequest.{ action=.CLICK, uuid=msg.uuid, position=msg.position });
-
-                action := ActionRequest.{ action=.CLAIM_AREA, uuid=msg.uuid, network_id=msg.network_id };
-                perform_action_request(game_state, *action);
-                fast_forward_state(msg.state_index, app.current);
-            }
-        }
-
-        client_release_message(client, message);
-        message = client_receive_message(client, xx GameChannel.RELIABLE);
-    }
-}
-
-send_actions_to_server :: (app: *AppState, game_state: *GameState) {
-    using app.network_manager;
-    for 0..game_state.nr_of_actions-1 {
-        action := game_state.actions[it];
-        if #complete action.result.kind == {
-            case .MOVE;
-                send_message(client, .PLAYER_MOVE, PlayerMoveMessage, PlayerMoveData.{ app.current, action.point });
-
-            case .ADD_PLAYER;
-                message := cast(*ClientConnectMessage) client_create_message(app.network_manager.client, xx GameMessageType.CLIENT_CONNECT);
-                client_send_message(app.network_manager.client, xx GameChannel.RELIABLE, message);
-
-            case .CLAIM_AREA;
-                send_message(client, .PLAYER_CLICK_WORLD, PlayerClickWorldMessage, PlayerClickWorldData.{ state_index=app.current, position=action.position });
-
-            case .DONT_CARE;
-        }
-    }
-}
+#load "client.jai";
 
 convert_input_to_actions :: (input_state: *InputState, game_state: *GameState) -> []ActionRequest {
     actions: [..]ActionRequest;
+    uuid: u64 = ifx game_state.player_index != -1 then game_state.players[game_state.player_index].uuid else 69420;
 
     if input_state.RMB_pressed {
-        assert(game_state.player_index != -1, "Tried creating action when player_index == -1");
-
-        mouse_pos: = mouse_to_screen(game_state) - HALF_TILE_RECT_SIZE;
-        mouse_grid := screen_to_map(mouse_pos);
-        if in_bounds(mouse_grid) {
-            player := game_state.players[game_state.player_index];
-            array_add(*actions, ActionRequest.{ action=.MOVE, point=mouse_grid, uuid=player.uuid });
+        if game_state.player_index != -1 {
+            mouse_pos: = mouse_to_screen(game_state) - HALF_TILE_RECT_SIZE;
+            mouse_grid := screen_to_map(mouse_pos);
+            // @TODO: consider unbounding this so it doesn't have to be checked here
+            if in_bounds(mouse_grid) // doesn't make sense to walk outside of the grid...
+                array_add(*actions, ActionRequest.{ kind=.MOVE, point=mouse_grid, uuid=uuid });
         }
-        input_state.RMB_pressed = false;
     }
 
     if input_state.LMB_pressed {
         mouse_pos: = mouse_to_screen(game_state);
-        uuid: u64 = 69420;
-        if game_state.player_index != -1 then uuid = game_state.players[game_state.player_index].uuid;
-        array_add(*actions, ActionRequest.{ action=.CLICK, position=mouse_pos, uuid=uuid });
-        input_state.LMB_pressed = false;
+        array_add(*actions, ActionRequest.{ kind=.CLICK, position=mouse_pos, uuid=uuid });
     }
 
     if input_state.space {
         action := ActionRequest.{
-            action  = .ADD_PLAYER,
+            kind    = .ADD_PLAYER,
             point   = Vector2i.{ xx(random_get() % TILES_X), xx(random_get() % TILES_Y) },
-            uuid    = 69420,
+            uuid    = uuid,
             b_value = game_state.player_index == -1,
             ignore  = false
         };
         #if CLIENT { action.ignore = true; } // this is needed to circumvent double actions on multiplayer
 
         array_add(*actions, action);
-        input_state.space = false;
     }
 
+    input_state.RMB_pressed = false;
+    input_state.LMB_pressed = false;
+    input_state.space = false;
     return actions;
 }
 
@@ -165,7 +67,6 @@ main :: () {
     previous_input: InputState;
     accumulated_input: InputState;
     game_state: *GameState;
-
     while !WindowShouldClose() {
         reset_temporary_storage();
 
