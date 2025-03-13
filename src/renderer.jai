@@ -68,7 +68,7 @@ draw_players :: (view: View, current: *GameState, previous: *GameState, render_s
         texture, ok := table_find(*render_state.textures, player.texture_id);
         assert(ok, "couldn't find texture");
 
-        offset := entity_feet_offset(player);
+        offset := player_feet_offset(player);
         position :=          ifx player.is_interpolating          then player.interpolated_position          else player.position;
         previous_position := ifx prev_player.is_interpolating     then prev_player.interpolated_position     else prev_player.position;
 

@@ -4,7 +4,7 @@
 MAX_PLAYERS :: 4;
 MAX_ACTIONS :: 16;
 GameState :: struct {
-    players: [MAX_PLAYERS]Entity;
+    players: [MAX_PLAYERS]Player;
     nr_of_players: s32 = 0;
     player_index: s32 = -1;
 
@@ -15,18 +15,18 @@ GameState :: struct {
     view: View;
 }
 
-ENTIY_STATE :: enum u16 {
-    IDLE;
-    RUNNING;
-}
-
 Sprite :: struct {
     texture_id: string;
     texture_rect: Rect;
 }
 
-ENTITY_PATH_COUNT :: 16;
-Entity :: struct {
+PLAYER_STATE :: enum u16 {
+    IDLE;
+    RUNNING;
+}
+
+PLAYER_PATH_COUNT :: 16;
+Player :: struct {
     using sprite: Sprite;
     sprite.texture_id = "resources/mage.bmp";
     sprite.texture_rect = Rect.{ x=0, y=0, w=32, h=48 };
@@ -34,10 +34,10 @@ Entity :: struct {
     interpolated_position: Vector2;
     is_interpolating: bool = false;
 
-    state: ENTIY_STATE = .IDLE;
+    state: PLAYER_STATE = .IDLE;
     speed: float32 = 160;
 
-    path: [ENTITY_PATH_COUNT]Vector2i;
+    path: [PLAYER_PATH_COUNT]Vector2i;
     current_path_index: s16;
 
     uuid: u64 = 0;
@@ -118,7 +118,7 @@ remove_action :: (using game_state: *GameState, action: ActionRequest) {
     for 0..nr_of_actions-1 log("%\n", actions[it]);
 }
 
-get_player :: (using game_state: *GameState, uuid: u64) -> *Entity {
+get_player :: (using game_state: *GameState, uuid: u64) -> *Player {
     assert(uuid != 0, "get_player: uuid == 0");
 
     for 0..nr_of_players
@@ -130,7 +130,7 @@ get_player :: (using game_state: *GameState, uuid: u64) -> *Entity {
 
 add_player :: (using game_state: *GameState, uuid: u64, point: Vector2i, is_client: bool) {
     assert(nr_of_players != MAX_PLAYERS-1, "add_player: nr_of_players == MAX_PLAYERS-1");
-    players[nr_of_players] = Entity.{ position=map_to_screen(point), uuid=uuid, is_client=is_client };
+    players[nr_of_players] = Player.{ position=map_to_screen(point), uuid=uuid, is_client=is_client };
 
     if is_client
         game_state.player_index = nr_of_players;
@@ -156,8 +156,8 @@ perform_action_request :: (using game_state: *GameState, request: *ActionRequest
                     for * tile: tiles
                         tile.flags &= ~.PATH;
 
-                if path.count >= ENTITY_PATH_COUNT { // truncate if too many points in path
-                    diff := path.count - ENTITY_PATH_COUNT;
+                if path.count >= PLAYER_PATH_COUNT { // truncate if too many points in path
+                    diff := path.count - PLAYER_PATH_COUNT;
                     path.data, path.count += diff, -diff;
                 }
                 player.current_path_index = xx(path.count-1);
@@ -234,7 +234,7 @@ move_position_to_target :: (position: *Vector2, target: Vector2, speed: float32,
     return no_remaining;
 }
 
-entity_feet_offset :: (using entity: Entity) -> Vector2 {
+player_feet_offset :: (using player: Player) -> Vector2 {
     return Vector2.{
         cast(float32, texture_rect.w) * 0,  // kinda @HARDCODED
         cast(float32, texture_rect.h) * 3/4 // kinda @HARDCODED

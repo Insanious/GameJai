@@ -72,7 +72,7 @@ PlayerMoveResponseData :: struct {
     uuid: u64;
     point: Vector2i;
     count: s64;
-    path: [ENTITY_PATH_COUNT]Vector2i;
+    path: [PLAYER_PATH_COUNT]Vector2i;
 }
 PlayerMoveResponseMessage :: struct {
     using #as base: Message;
@@ -142,7 +142,7 @@ ClientConnectMessage :: struct {
 ClientConnectResponseData :: struct {
     state_index: s16;
     nr_of_players: s32;
-    players: [MAX_PLAYERS]Entity;
+    players: [MAX_PLAYERS]Player;
     tile_flags: [TILES_Y][TILES_X]TileFlags;
     areas: [MAX_AREAS]Area;
 }
