@@ -54,7 +54,7 @@ ActionResult :: struct {
     RESULT :: enum u16 {
         MOVE;
         ADD_PLAYER;
-        CLAIM_AREA;
+        CLAIM_REGION;
     }
     kind: RESULT;
 
@@ -189,16 +189,16 @@ perform_action_request :: (using game_state: *GameState, request: *ActionRequest
         case .CLICK; {
             if !player return ActionResult.{}, false;
 
-            for 0..MAX_AREAS-1 {
-                area := *WORLD.areas[it];
-                if rect_contains(area.entrance_btn, request.position) {
-                    if area.owner_uuid return ActionResult.{}, false;
+            for 0..MAX_REGIONS-1 {
+                region := *WORLD.regions[it];
+                if rect_contains(region.entrance_btn, request.position) {
+                    if region.owner_uuid return ActionResult.{}, false;
 
-                    for index: area.entrance WORLD.tiles[index.y][index.x].flags |= .WHITELISTED;
-                    area.owner_uuid = request.uuid;
+                    for index: region.entrance WORLD.tiles[index.y][index.x].flags |= .WHITELISTED;
+                    region.owner_uuid = request.uuid;
                     player.gold_income += 1;
 
-                    return ActionResult.{ kind=.CLAIM_AREA, network_id=area.network_id }, true;
+                    return ActionResult.{ kind=.CLAIM_REGION, network_id=region.network_id }, true;
                 }
             }
         }

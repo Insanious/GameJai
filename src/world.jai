@@ -8,10 +8,10 @@ HALF_TILE_SIZE ::       Vector2.{16,  8};
 TILE_RECT_SIZE ::       Vector2.{32, 32};
 HALF_TILE_RECT_SIZE ::  Vector2.{16, 16};
 
-MAX_AREAS :: 2;
+MAX_REGIONS :: 2;
 World :: struct {
     tiles: [TILES_Y][TILES_X]Tile;
-    areas: [MAX_AREAS]Area;
+    regions: [MAX_REGIONS]Region;
 }
 
 TileFlags :: enum_flags u8 {
@@ -29,7 +29,7 @@ Tile :: struct {
 }
 
 ENTRANCE_SIZE :: 3;
-Area :: struct {
+Region :: struct {
     rect: IntRect;
     entrance: [ENTRANCE_SIZE]Vector2i;
     entrance_btn: Rect;
@@ -40,7 +40,7 @@ Area :: struct {
 
 random_span :: (min: u64, max: u64) -> u64 { return random_get() % (max + 1 - min) + min; }
 
-random_area :: () -> Area {
+random_region :: () -> Region {
     rect: IntRect;
     entrance: [3]Vector2i;
     while true {
@@ -85,7 +85,7 @@ random_area :: () -> Area {
     mid := map_to_screen(entrance[ENTRANCE_SIZE/2]);
     entrance_btn: Rect = .{x=xx (mid.x + 10), y=xx (mid.y - 5), w=10, h=10};
 
-    return Area.{ rect=rect, entrance=entrance, entrance_btn=entrance_btn, network_id=get_new_network_id() };
+    return Region.{ rect=rect, entrance=entrance, entrance_btn=entrance_btn, network_id=get_new_network_id() };
 }
 
 init_world :: (using world: *World) {
@@ -97,10 +97,10 @@ init_world :: (using world: *World) {
         }
     }
 
-    for 0..MAX_AREAS-1 {
-        world.areas[it] = random_area();
+    for 0..MAX_REGIONS-1 {
+        world.regions[it] = random_region();
         {
-            using world.areas[it];
+            using world.regions[it];
             for 0..rect.width {
                 tiles[rect.y            ][rect.x+it].flags &= ~.WALKABLE;
                 tiles[rect.y+rect.height][rect.x+it].flags &= ~.WALKABLE;

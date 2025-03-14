@@ -53,8 +53,8 @@ draw_world :: (view: View, world: World, render_state: *RenderState) {
         }
     }
 
-    for area: world.areas
-        DrawRectangleRec(transform_to_view(view, area.entrance_btn), DARKBLUE);
+    for region: world.regions
+        DrawRectangleRec(transform_to_view(view, region.entrance_btn), DARKBLUE);
 }
 
 draw_players :: (view: View, current: *GameState, previous: *GameState, render_state: *RenderState) {

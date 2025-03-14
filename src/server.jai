@@ -47,7 +47,7 @@ process_messages :: (app: *AppState) {
                 case .PLAYER_CLICK_WORLD; process_player_click_world_message(xx message, app, server, uuid);
                 case .PLAYER_MOVE;        process_player_move_message(xx message, app, server, uuid);
                 case .CLIENT_CONNECT;     process_client_connect_message(xx message, app, server, uuid, it);
-                case; assert(false, "got some weird message...");
+                case;                     assert(false, "got some weird message...");
             }
             server_release_message(server, it, message);
             message = server_receive_message(server, it, xx GameChannel.RELIABLE);
@@ -56,20 +56,20 @@ process_messages :: (app: *AppState) {
 }
 
 process_player_click_world_message :: (msg: *PlayerClickWorldMessage, app: *AppState, server: *Server, uuid: u64) {
-    temp_areas: [MAX_AREAS]Area; // @TEMP
-    memcpy(*temp_areas, *WORLD.areas, size_of(Area) * MAX_AREAS);
+    temp_regions: [MAX_REGIONS]Region; // @TEMP
+    memcpy(*temp_regions, *WORLD.regions, size_of(Region) * MAX_REGIONS);
 
     request := ActionRequest.{ kind=.CLICK, position=msg.position, uuid=uuid };
     result, ok := perform_clean_action_request(*DUMMY_STATE, msg.state_index, *request);
-    memcpy(*WORLD.areas, *temp_areas, size_of(Area) * MAX_AREAS);
+    memcpy(*WORLD.regions, *temp_regions, size_of(Region) * MAX_REGIONS);
     if !ok return;
 
-    if result.kind == .CLAIM_AREA {
-        response_data := PlayerClaimAreaResponseData.{ msg.state_index, uuid, result.network_id, msg.position };
-        broadcast(server, .PLAYER_CLAIM_AREA_RESPONSE, PlayerClaimAreaResponseMessage, response_data);
+    if result.kind == .CLAIM_REGION {
+        response_data := PlayerClaimRegionResponseData.{ msg.state_index, uuid, result.network_id, msg.position };
+        broadcast(server, .PLAYER_CLAIM_REGION_RESPONSE, PlayerClaimRegionResponseMessage, response_data);
         fast_forward_state_with_request(msg.state_index, app.current, request);
     } else {
-        assert(false, "result.kind != .CLAIM_AREA");
+        assert(false, "result.kind != .CLAIM_REGION");
     }
 }
 
@@ -92,7 +92,7 @@ process_client_connect_message :: (msg: *PlayerMoveMessage, app: *AppState, serv
         state_index=app.current,
         nr_of_players=current_state.nr_of_players,
         players=current_state.players,
-        areas=WORLD.areas,
+        regions=WORLD.regions,
         current_income_tick=current_state.current_income_tick
     };
     for y: 0..TILES_Y-1

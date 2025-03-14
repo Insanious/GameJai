@@ -31,18 +31,18 @@ serialize_struct :: (stream: *Stream, rect: *IntRect, min: Vector2i, max: Vector
     return true;
 }
 
-PlayerClaimAreaResponseData :: struct {
+PlayerClaimRegionResponseData :: struct {
     state_index: s16;
     uuid: u64;
     network_id: u32;
     position: Vector2;
 }
-PlayerClaimAreaResponseMessage :: struct {
+PlayerClaimRegionResponseMessage :: struct {
     using #as base: Message;
-    using data: PlayerClaimAreaResponseData;
+    using data: PlayerClaimRegionResponseData;
 
     serialize :: (stream: *Stream, message: *Message) -> bool {
-        m := cast(*PlayerClaimAreaResponseMessage) message;
+        m := cast(*PlayerClaimRegionResponseMessage) message;
         serialize_bits(stream, *m.state_index, 16);
         serialize_bits(stream, *m.uuid, 64);
         serialize_bits(stream, *m.network_id, 32);
@@ -145,7 +145,7 @@ ClientConnectResponseData :: struct {
     nr_of_players: s32;
     players: [MAX_PLAYERS]Player;
     tile_flags: [TILES_Y][TILES_X]TileFlags;
-    areas: [MAX_AREAS]Area;
+    regions: [MAX_REGIONS]Region;
 }
 ClientConnectResponseMessage :: struct {
     using #as base: Message;
@@ -169,13 +169,13 @@ ClientConnectResponseMessage :: struct {
             for x: 0..TILES_X-1
                 serialize_bits(stream, *m.tile_flags[y][x], 8);
 
-        for 0..MAX_AREAS-1 {
-            serialize_bits(stream, *m.areas[it].network_id, 32);
-            serialize_struct(stream, *m.areas[it].rect, MIN_TILES, MAX_TILES);
-            serialize_struct(stream, *m.areas[it].entrance_btn);
-            serialize_struct(stream, *m.areas[it].entrance_btn);
+        for 0..MAX_REGIONS-1 {
+            serialize_bits(stream, *m.regions[it].network_id, 32);
+            serialize_struct(stream, *m.regions[it].rect, MIN_TILES, MAX_TILES);
+            serialize_struct(stream, *m.regions[it].entrance_btn);
+            serialize_struct(stream, *m.regions[it].entrance_btn);
             for entrance_idx: 0..ENTRANCE_SIZE-1
-                serialize_struct(stream, *m.areas[it].entrance[entrance_idx], MIN_TILES, MAX_TILES);
+                serialize_struct(stream, *m.regions[it].entrance[entrance_idx], MIN_TILES, MAX_TILES);
         }
 
         return true;
@@ -183,7 +183,7 @@ ClientConnectResponseMessage :: struct {
 }
 
 GameMessageType :: enum u16 {
-    PLAYER_CLAIM_AREA_RESPONSE;
+    PLAYER_CLAIM_REGION_RESPONSE;
     PLAYER_CLICK_WORLD;
     PLAYER_MOVE_RESPONSE;
     PLAYER_MOVE;
@@ -197,25 +197,25 @@ GameMessageFactory :: MessageFactory.{
     create = (message_type: u16) -> *Message {
         type := message_type.(GameMessageType);
         if #complete type == {
-            case .PLAYER_CLAIM_AREA_RESPONSE; return New(PlayerClaimAreaResponseMessage);
-            case .PLAYER_CLICK_WORLD;         return New(PlayerClickWorldMessage);
-            case .PLAYER_MOVE_RESPONSE;       return New(PlayerMoveResponseMessage);
-            case .PLAYER_MOVE;                return New(PlayerMoveMessage);
-            case .NEW_PLAYER;                 return New(NewPlayerMessage);
-            case .CLIENT_CONNECT;             return New(ClientConnectMessage);
-            case .CLIENT_CONNECT_RESPONSE;    return New(ClientConnectResponseMessage);
+            case .PLAYER_CLAIM_REGION_RESPONSE; return New(PlayerClaimRegionResponseMessage);
+            case .PLAYER_CLICK_WORLD;           return New(PlayerClickWorldMessage);
+            case .PLAYER_MOVE_RESPONSE;         return New(PlayerMoveResponseMessage);
+            case .PLAYER_MOVE;                  return New(PlayerMoveMessage);
+            case .NEW_PLAYER;                   return New(NewPlayerMessage);
+            case .CLIENT_CONNECT;               return New(ClientConnectMessage);
+            case .CLIENT_CONNECT_RESPONSE;      return New(ClientConnectResponseMessage);
         }
     },
     serialize = (stream: *Stream, message: *Message) -> bool {
         type := message.type.(GameMessageType);
         if #complete type == {
-            case .PLAYER_CLAIM_AREA_RESPONSE; return PlayerClaimAreaResponseMessage.serialize(stream, message);
-            case .PLAYER_CLICK_WORLD;         return PlayerClickWorldMessage.serialize(stream, message);
-            case .PLAYER_MOVE_RESPONSE;       return PlayerMoveResponseMessage.serialize(stream, message);
-            case .PLAYER_MOVE;                return PlayerMoveMessage.serialize(stream, message);
-            case .NEW_PLAYER;                 return NewPlayerMessage.serialize(stream, message);
-            case .CLIENT_CONNECT;             return ClientConnectMessage.serialize(stream, message);
-            case .CLIENT_CONNECT_RESPONSE;    return ClientConnectResponseMessage.serialize(stream, message);
+            case .PLAYER_CLAIM_REGION_RESPONSE; return PlayerClaimRegionResponseMessage.serialize(stream, message);
+            case .PLAYER_CLICK_WORLD;           return PlayerClickWorldMessage.serialize(stream, message);
+            case .PLAYER_MOVE_RESPONSE;         return PlayerMoveResponseMessage.serialize(stream, message);
+            case .PLAYER_MOVE;                  return PlayerMoveMessage.serialize(stream, message);
+            case .NEW_PLAYER;                   return NewPlayerMessage.serialize(stream, message);
+            case .CLIENT_CONNECT;               return ClientConnectMessage.serialize(stream, message);
+            case .CLIENT_CONNECT_RESPONSE;      return ClientConnectResponseMessage.serialize(stream, message);
         }
     }
 };
@@ -239,13 +239,13 @@ NetworkManager :: struct {
 
 log_message_type :: (prefix: string, type: GameMessageType) {
     if #complete type == {
-        case .PLAYER_CLAIM_AREA_RESPONSE; log("% PLAYER_CLAIM_AREA_RESPONSE\n", prefix);
-        case .PLAYER_CLICK_WORLD;         log("% PLAYER_CLICK_WORLD\n",         prefix);
-        case .PLAYER_MOVE_RESPONSE;       log("% PLAYER_MOVE_RESPONSE\n",       prefix);
-        case .PLAYER_MOVE;                log("% PLAYER_MOVE\n",                prefix);
-        case .NEW_PLAYER;                 log("% NEW_PLAYER\n",                 prefix);
-        case .CLIENT_CONNECT;             log("% CLIENT_CONNECT\n",             prefix);
-        case .CLIENT_CONNECT_RESPONSE;    log("% CLIENT_CONNECT_RESPONSE\n",    prefix);
+        case .PLAYER_CLAIM_REGION_RESPONSE; log("% PLAYER_CLAIM_REGION_RESPONSE\n", prefix);
+        case .PLAYER_CLICK_WORLD;           log("% PLAYER_CLICK_WORLD\n",           prefix);
+        case .PLAYER_MOVE_RESPONSE;         log("% PLAYER_MOVE_RESPONSE\n",         prefix);
+        case .PLAYER_MOVE;                  log("% PLAYER_MOVE\n",                  prefix);
+        case .NEW_PLAYER;                   log("% NEW_PLAYER\n",                   prefix);
+        case .CLIENT_CONNECT;               log("% CLIENT_CONNECT\n",               prefix);
+        case .CLIENT_CONNECT_RESPONSE;      log("% CLIENT_CONNECT_RESPONSE\n",      prefix);
     }
 }
 

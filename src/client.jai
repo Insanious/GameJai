@@ -50,10 +50,10 @@ process_messages :: (app: *AppState) {
         log_message_type("Got message", cast(GameMessageType) message.type);
 
         if cast(GameMessageType) message.type == {
-            case .NEW_PLAYER;                 process_new_player_message(xx message, app, client.clientId);
-            case .CLIENT_CONNECT_RESPONSE;    process_client_connect_response_message(xx message, app, client.clientId);
-            case .PLAYER_MOVE_RESPONSE;       process_player_move_response_message(xx message, app, client.clientId);
-            case .PLAYER_CLAIM_AREA_RESPONSE; process_player_claim_area_response_message(xx message, app, client.clientId);
+            case .NEW_PLAYER;                   process_new_player_message(xx message, app, client.clientId);
+            case .CLIENT_CONNECT_RESPONSE;      process_client_connect_response_message(xx message, app, client.clientId);
+            case .PLAYER_MOVE_RESPONSE;         process_player_move_response_message(xx message, app, client.clientId);
+            case .PLAYER_CLAIM_REGION_RESPONSE; process_player_claim_region_response_message(xx message, app, client.clientId);
         }
 
         client_release_message(client, message);
@@ -82,7 +82,7 @@ process_client_connect_response_message :: (msg: *ClientConnectResponseMessage, 
     GAME_STATES[app.current].nr_of_players = msg.nr_of_players;
     GAME_STATES[app.current].players = msg.players;
     GAME_STATES[app.current].current_income_tick = msg.current_income_tick;
-    WORLD.areas = msg.areas;
+    WORLD.regions = msg.regions;
     for y: 0..TILES_Y-1
         for x: 0..TILES_X-1
             WORLD.tiles[y][x].flags = msg.tile_flags[y][x];
@@ -127,18 +127,18 @@ process_player_move_response_message :: (msg: *PlayerMoveResponseMessage, app: *
     }
 }
 
-process_player_claim_area_response_message :: (msg: *PlayerClaimAreaResponseMessage, app: *AppState, uuid: u64) {
+process_player_claim_region_response_message :: (msg: *PlayerClaimRegionResponseMessage, app: *AppState, uuid: u64) {
     game_state := *GAME_STATES[msg.state_index];
     copy_game_state(game_state, *GAME_STATES[prev_state_index(msg.state_index)]);
 
     if msg.uuid == uuid
          remove_action(game_state, ActionRequest.{ kind=.CLICK, uuid=msg.uuid, position=msg.position });
 
-    for 0..MAX_AREAS-1 {
-        area := *WORLD.areas[it];
-        if area.network_id == msg.network_id {
-            for index: area.entrance WORLD.tiles[index.y][index.x].flags |= .WHITELISTED;
-            area.owner_uuid = msg.uuid;
+    for 0..MAX_REGIONS-1 {
+        region := *WORLD.regions[it];
+        if region.network_id == msg.network_id {
+            for index: region.entrance WORLD.tiles[index.y][index.x].flags |= .WHITELISTED;
+            region.owner_uuid = msg.uuid;
             get_player(game_state, msg.uuid).gold_income += 1;
             break;
         }
