@@ -62,8 +62,17 @@ process_messages :: (app: *AppState) {
 }
 
 process_new_player_message :: (msg: *NewPlayerMessage, app: *AppState, uuid: u64) {
-    add_player(*GAME_STATES[msg.state_index], msg.uuid, msg.point, msg.uuid == uuid);
+    // @Note: this requires special handling since when the player first joins, there is
+    //        no previous state and the current_income_tick will be the default value of 0
+
+    current_income_tick := GAME_STATES[app.current].current_income_tick;
+    game_state := *GAME_STATES[msg.state_index];
+    copy_game_state(game_state, *GAME_STATES[prev_state_index(msg.state_index)]);
+
+    add_player(game_state, msg.uuid, msg.point, msg.uuid == uuid);
     fast_forward_state(msg.state_index, app.current);
+
+    GAME_STATES[app.current].current_income_tick = current_income_tick;
 }
 
 process_client_connect_response_message :: (msg: *ClientConnectResponseMessage, app: *AppState, uuid: u64) {
@@ -72,6 +81,7 @@ process_client_connect_response_message :: (msg: *ClientConnectResponseMessage, 
     app.previous = prev_state_index(msg.state_index);
     GAME_STATES[app.current].nr_of_players = msg.nr_of_players;
     GAME_STATES[app.current].players = msg.players;
+    GAME_STATES[app.current].current_income_tick = msg.current_income_tick;
     WORLD.areas = msg.areas;
     for y: 0..TILES_Y-1
         for x: 0..TILES_X-1
@@ -84,9 +94,9 @@ process_player_move_response_message :: (msg: *PlayerMoveResponseMessage, app: *
     position_to_interpolate_to := ifx player.is_interpolating then player.interpolated_position else player.position;
 
     game_state := *GAME_STATES[msg.state_index];
-    copy_game_state(game_state, *GAME_STATES[prev_state_index(msg.state_index)]); // reset msg state
+    copy_game_state(game_state, *GAME_STATES[prev_state_index(msg.state_index)]);
 
-    if msg.uuid == uuid // remove the move done by the local client
+    if msg.uuid == uuid
          remove_action(game_state, ActionRequest.{ kind=.MOVE, uuid=msg.uuid, point=msg.point });
 
     player = get_player(game_state, msg.uuid);
@@ -107,7 +117,7 @@ process_player_move_response_message :: (msg: *PlayerMoveResponseMessage, app: *
     else                              player.state = .IDLE;
 
 
-    fast_forward_state(msg.state_index, app.current); // fast forward as if nothing happened
+    fast_forward_state(msg.state_index, app.current);
 
     if msg.uuid != uuid {
         player = get_player(*GAME_STATES[app.current], msg.uuid);
@@ -121,7 +131,7 @@ process_player_claim_area_response_message :: (msg: *PlayerClaimAreaResponseMess
     game_state := *GAME_STATES[msg.state_index];
     copy_game_state(game_state, *GAME_STATES[prev_state_index(msg.state_index)]);
 
-    if msg.uuid == uuid // remove the move done by the local client
+    if msg.uuid == uuid
          remove_action(game_state, ActionRequest.{ kind=.CLICK, uuid=msg.uuid, position=msg.position });
 
     for 0..MAX_AREAS-1 {
@@ -129,6 +139,7 @@ process_player_claim_area_response_message :: (msg: *PlayerClaimAreaResponseMess
         if area.network_id == msg.network_id {
             for index: area.entrance WORLD.tiles[index.y][index.x].flags |= .WHITELISTED;
             area.owner_uuid = msg.uuid;
+            get_player(game_state, msg.uuid).gold_income += 1;
             break;
         }
     }

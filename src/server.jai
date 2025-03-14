@@ -56,14 +56,18 @@ process_messages :: (app: *AppState) {
 }
 
 process_player_click_world_message :: (msg: *PlayerClickWorldMessage, app: *AppState, server: *Server, uuid: u64) {
+    temp_areas: [MAX_AREAS]Area; // @TEMP
+    memcpy(*temp_areas, *WORLD.areas, size_of(Area) * MAX_AREAS);
+
     request := ActionRequest.{ kind=.CLICK, position=msg.position, uuid=uuid };
     result, ok := perform_clean_action_request(*DUMMY_STATE, msg.state_index, *request);
+    memcpy(*WORLD.areas, *temp_areas, size_of(Area) * MAX_AREAS);
     if !ok return;
 
     if result.kind == .CLAIM_AREA {
         response_data := PlayerClaimAreaResponseData.{ msg.state_index, uuid, result.network_id, msg.position };
         broadcast(server, .PLAYER_CLAIM_AREA_RESPONSE, PlayerClaimAreaResponseMessage, response_data);
-        // @NOTE: fast forward not necessary since this is just updating the global WORLD directly, instead of a specific game_state
+        fast_forward_state_with_request(msg.state_index, app.current, request);
     } else {
         assert(false, "result.kind != .CLAIM_AREA");
     }
@@ -71,10 +75,11 @@ process_player_click_world_message :: (msg: *PlayerClickWorldMessage, app: *AppS
 
 process_player_move_message :: (msg: *PlayerMoveMessage, app: *AppState, server: *Server, uuid: u64) {
     request := ActionRequest.{ kind=.MOVE, point=msg.point, uuid=uuid };
-    perform_clean_action_request(*DUMMY_STATE, msg.state_index, *request);
+    result, ok := perform_clean_action_request(*DUMMY_STATE, msg.state_index, *request);
+    if !ok return;
+
     player := get_player(*DUMMY_STATE, uuid);
     assert(player != null);
-
     response_data := PlayerMoveResponseData.{ msg.state_index, uuid, msg.point, player.current_path_index+1, player.path };
     broadcast(server, .PLAYER_MOVE_RESPONSE, PlayerMoveResponseMessage, response_data);
 
@@ -83,10 +88,17 @@ process_player_move_message :: (msg: *PlayerMoveMessage, app: *AppState, server:
 
 process_client_connect_message :: (msg: *PlayerMoveMessage, app: *AppState, server: *Server, uuid: u64, client: int) {
     current_state := *GAME_STATES[app.current];
-    response_data := ClientConnectResponseData.{ state_index=app.current, nr_of_players=current_state.nr_of_players, players=current_state.players, areas=WORLD.areas };
+    response_data := ClientConnectResponseData.{
+        state_index=app.current,
+        nr_of_players=current_state.nr_of_players,
+        players=current_state.players,
+        areas=WORLD.areas,
+        current_income_tick=current_state.current_income_tick
+    };
     for y: 0..TILES_Y-1
         for x: 0..TILES_X-1
             response_data.tile_flags[y][x] = WORLD.tiles[y][x].flags;
+
     send_message(server, client, .CLIENT_CONNECT_RESPONSE, ClientConnectResponseMessage, response_data);
 
     new_player_data := NewPlayerData.{ app.current, uuid, Vector2i.{ xx(random_get() % TILES_X), xx(random_get() % TILES_Y) } };

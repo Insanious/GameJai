@@ -60,6 +60,9 @@ draw_world :: (view: View, world: World, render_state: *RenderState) {
 draw_players :: (view: View, current: *GameState, previous: *GameState, render_state: *RenderState) {
     for 0..current.nr_of_players-1 {
         player := current.players[it];
+        if it == current.player_index
+            DrawText(cast(*u8, tprint("Gold: %\0", player.gold).data), 0, 20, 20, RAYWHITE);
+
 
         prev_player := previous.players[it];
         if it >= previous.nr_of_players // don't interpolate

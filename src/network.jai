@@ -141,6 +141,7 @@ ClientConnectMessage :: struct {
 
 ClientConnectResponseData :: struct {
     state_index: s16;
+    current_income_tick: float32;
     nr_of_players: s32;
     players: [MAX_PLAYERS]Player;
     tile_flags: [TILES_Y][TILES_X]TileFlags;
@@ -153,6 +154,8 @@ ClientConnectResponseMessage :: struct {
     serialize :: (stream: *Stream, message: *Message) -> bool {
         m := cast(*ClientConnectResponseMessage) message;
         serialize_bits(stream, *m.state_index, 16);
+        serialize_float(stream, *m.current_income_tick);
+
         serialize_bits(stream, *m.nr_of_players, 32);
         for 0..m.nr_of_players-1 {
             player := *m.players[it];
@@ -187,11 +190,10 @@ GameMessageType :: enum u16 {
     NEW_PLAYER;
     CLIENT_CONNECT;
     CLIENT_CONNECT_RESPONSE;
-    NUM_MESSAGE_TYPES;
 }
 
 GameMessageFactory :: MessageFactory.{
-    max_message_type = xx GameMessageType.NUM_MESSAGE_TYPES,
+    max_message_type = #run enum_highest_value(GameMessageType) + 1,
     create = (message_type: u16) -> *Message {
         type := message_type.(GameMessageType);
         if #complete type == {
@@ -202,7 +204,6 @@ GameMessageFactory :: MessageFactory.{
             case .NEW_PLAYER;                 return New(NewPlayerMessage);
             case .CLIENT_CONNECT;             return New(ClientConnectMessage);
             case .CLIENT_CONNECT_RESPONSE;    return New(ClientConnectResponseMessage);
-            case .NUM_MESSAGE_TYPES;          return null;
         }
     },
     serialize = (stream: *Stream, message: *Message) -> bool {
@@ -215,7 +216,6 @@ GameMessageFactory :: MessageFactory.{
             case .NEW_PLAYER;                 return NewPlayerMessage.serialize(stream, message);
             case .CLIENT_CONNECT;             return ClientConnectMessage.serialize(stream, message);
             case .CLIENT_CONNECT_RESPONSE;    return ClientConnectResponseMessage.serialize(stream, message);
-            case .NUM_MESSAGE_TYPES;          return false;
         }
     }
 };
@@ -246,7 +246,6 @@ log_message_type :: (prefix: string, type: GameMessageType) {
         case .NEW_PLAYER;                 log("% NEW_PLAYER\n",                 prefix);
         case .CLIENT_CONNECT;             log("% CLIENT_CONNECT\n",             prefix);
         case .CLIENT_CONNECT_RESPONSE;    log("% CLIENT_CONNECT_RESPONSE\n",    prefix);
-        case .NUM_MESSAGE_TYPES;          log("% NUM_MESSAGE_TYPES\n",          prefix);
     }
 }
 

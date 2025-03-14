@@ -13,6 +13,9 @@ GameState :: struct {
 
     input_state: InputState;
     view: View;
+
+    income_tick: float32 = 1;
+    current_income_tick: float32 = 0;
 }
 
 Sprite :: struct {
@@ -40,13 +43,15 @@ Player :: struct {
     path: [PLAYER_PATH_COUNT]Vector2i;
     current_path_index: s16;
 
+    gold: s32 = 0;
+    gold_income: s32 = 0;
+
     uuid: u64 = 0;
     is_client := false;
 }
 
 ActionResult :: struct {
     RESULT :: enum u16 {
-        DONT_CARE;
         MOVE;
         ADD_PLAYER;
         CLAIM_AREA;
@@ -75,6 +80,7 @@ copy_game_state :: (dst: *GameState, src: *GameState) {
     dst.players = src.players;
     dst.nr_of_players = src.nr_of_players;
     dst.player_index = src.player_index;
+    dst.current_income_tick = src.current_income_tick;
 }
 
 temp_get_rect_points :: (start: Vector2i, end: Vector2i) -> []Vector2i {
@@ -181,11 +187,16 @@ perform_action_request :: (using game_state: *GameState, request: *ActionRequest
         }
 
         case .CLICK; {
+            if !player return ActionResult.{}, false;
+
             for 0..MAX_AREAS-1 {
                 area := *WORLD.areas[it];
                 if rect_contains(area.entrance_btn, request.position) {
+                    if area.owner_uuid return ActionResult.{}, false;
+
                     for index: area.entrance WORLD.tiles[index.y][index.x].flags |= .WHITELISTED;
                     area.owner_uuid = request.uuid;
+                    player.gold_income += 1;
 
                     return ActionResult.{ kind=.CLAIM_AREA, network_id=area.network_id }, true;
                 }
@@ -208,10 +219,20 @@ simulate :: (using game_state: *GameState, dt: float32) {
 
     for 0..nr_of_actions-1 perform_action_request(game_state, *actions[it]);
 
+    is_income_tick := false;
+    current_income_tick += dt;
+    if current_income_tick >= income_tick {
+        current_income_tick -= income_tick;
+        is_income_tick = true;
+    }
+
     for 0..nr_of_players-1 {
         player := *players[it];
         {
             using player;
+            if is_income_tick
+                gold += gold_income;
+
             if state == .RUNNING {
                 if current_path_index >= 0 {
                     if move_position_to_target(*position, map_to_screen(path[current_path_index]), speed, dt) {
@@ -220,9 +241,10 @@ simulate :: (using game_state: *GameState, dt: float32) {
                     }
                 }
             }
-            if is_interpolating
+            if is_interpolating {
                 if move_position_to_target(*interpolated_position, position, speed, dt)
                     is_interpolating = false;
+            }
         }
     }
 }
