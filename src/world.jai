@@ -22,8 +22,7 @@ TileFlags :: enum_flags u8 {
 }
 
 Tile :: struct {
-    using sprite: Sprite;
-    sprite.texture_id = "resources/tileset.bmp";
+    using sprite: Sprite = .{ texture_id="resources/tileset.bmp", texture_rect=Rect.{ x=0, y=0, w=#run TILE_RECT_SIZE.x, h=#run TILE_RECT_SIZE.y } };
     position: Vector2;
     flags: TileFlags = 0;
 }
@@ -129,6 +128,5 @@ screen_to_map :: (using vector: Vector2) -> Vector2i {
         cast(s32, ceil((y / HALF_TILE_SIZE.y - x / HALF_TILE_SIZE.x) / 2))
     };
 }
-
 
 in_bounds :: (using vector: Vector2i) -> bool { return (x >= 0 && x < TILES_X && y >= 0 && y < TILES_Y); }
