@@ -28,6 +28,7 @@ PLAYER_STATE :: enum u16 {
     RUNNING;
 }
 
+MAX_CLAIMED_REGIONS :: 2;
 PLAYER_PATH_COUNT :: 16;
 Player :: struct {
     using sprite: Sprite;
@@ -41,10 +42,12 @@ Player :: struct {
     speed: float32 = 160;
 
     path: [PLAYER_PATH_COUNT]Vector2i;
-    current_path_index: s16;
+    current_path_index: s16 = 0;
 
     gold: s32 = 0;
-    gold_income: s32 = 0;
+
+    claimed_regions: [MAX_CLAIMED_REGIONS]s64;
+    nr_of_claimed_regions: s16 = 0;
 
     uuid: u64 = 0;
     is_client := false;
@@ -144,6 +147,25 @@ add_player :: (using game_state: *GameState, uuid: u64, point: Vector2i, is_clie
     nr_of_players += 1;
 }
 
+region_is_claimed :: (using game_state: *GameState, region: s64) -> bool {
+    for player_index: 0..nr_of_players-1
+        for 0..players[player_index].nr_of_claimed_regions-1
+            if players[player_index].claimed_regions[it] == region
+                return true;
+
+    return false;
+}
+
+player_claim_region :: (using player: *Player, region: s64) {
+    assert(nr_of_claimed_regions < MAX_CLAIMED_REGIONS, "nr_of_claimed_regions >= MAX_CLAIMED_REGIONS");
+    claimed_regions[nr_of_claimed_regions] = region;
+    nr_of_claimed_regions += 1;
+}
+
+calculate_gold_income :: (using player: *Player) -> s32 {
+    return nr_of_claimed_regions;
+}
+
 perform_action_request :: (using game_state: *GameState, request: *ActionRequest) -> (ActionResult, bool) {
     player := get_player(game_state, request.uuid);
     if #complete request.kind == {
@@ -192,11 +214,11 @@ perform_action_request :: (using game_state: *GameState, request: *ActionRequest
             for 0..MAX_REGIONS-1 {
                 region := *WORLD.regions[it];
                 if rect_contains(region.entrance_btn, request.position) {
-                    if region.owner_uuid return ActionResult.{}, false;
+                    if region_is_claimed(game_state, it) || player.nr_of_claimed_regions >= MAX_CLAIMED_REGIONS
+                        return ActionResult.{}, false;
 
                     for index: region.entrance WORLD.tiles[index.y][index.x].flags |= .WHITELISTED;
-                    region.owner_uuid = request.uuid;
-                    player.gold_income += 1;
+                    player_claim_region(player, it);
 
                     return ActionResult.{ kind=.CLAIM_REGION, network_id=region.network_id }, true;
                 }
@@ -231,7 +253,7 @@ simulate :: (using game_state: *GameState, dt: float32) {
         {
             using player;
             if is_income_tick
-                gold += gold_income;
+                gold += calculate_gold_income(player);
 
             if state == .RUNNING {
                 if current_path_index >= 0 {

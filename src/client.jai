@@ -138,8 +138,8 @@ process_player_claim_region_response_message :: (msg: *PlayerClaimRegionResponse
         region := *WORLD.regions[it];
         if region.network_id == msg.network_id {
             for index: region.entrance WORLD.tiles[index.y][index.x].flags |= .WHITELISTED;
-            region.owner_uuid = msg.uuid;
-            get_player(game_state, msg.uuid).gold_income += 1;
+            player := get_player(game_state, msg.uuid);
+            player_claim_region(player, it);
             break;
         }
     }

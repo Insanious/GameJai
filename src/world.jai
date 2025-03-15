@@ -34,7 +34,6 @@ Region :: struct {
     entrance: [ENTRANCE_SIZE]Vector2i;
     entrance_btn: Rect;
 
-    owner_uuid: u64 = 0;
     network_id: u32 = 0;
 }
 
