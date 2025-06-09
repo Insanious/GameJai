@@ -41,8 +41,8 @@ AppState :: struct {
     clock: Clock;
     accumulator: float64 = 0;
     render_state: *RenderState = null;
-    view: View;
     network_manager: *NetworkManager = null;
+    view: View;
 
     current: s16 = 0;
     previous: s16 = 0;

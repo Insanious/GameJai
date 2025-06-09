@@ -35,11 +35,10 @@ send_actions_to_server :: (app: *AppState, game_state: *GameState) {
             case .MOVE;       send_message(client, .PLAYER_MOVE, PlayerMoveMessage, PlayerMoveData.{ app.current, action.point });
             case .ADD_PLAYER; send_message(client, .CLIENT_CONNECT, ClientConnectMessage, ClientConnectData.{});
             case .CLICK;      send_message(client, .PLAYER_CLICK_WORLD, PlayerClickWorldMessage, PlayerClickWorldData.{ app.current, action.position });
+            case .CLAIM_REGION;
         }
     }
 }
-
-
 
 process_messages :: (app: *AppState) {
     client := app.network_manager.client;
@@ -54,6 +53,7 @@ process_messages :: (app: *AppState) {
             case .CLIENT_CONNECT_RESPONSE;      process_client_connect_response_message(xx message, app, client.clientId);
             case .PLAYER_MOVE_RESPONSE;         process_player_move_response_message(xx message, app, client.clientId);
             case .PLAYER_CLAIM_REGION_RESPONSE; process_player_claim_region_response_message(xx message, app, client.clientId);
+            case .GAME_STATE_SYNC;              process_game_state_sync_message(xx message, app);
         }
 
         client_release_message(client, message);
@@ -112,10 +112,7 @@ process_player_move_response_message :: (msg: *PlayerMoveResponseMessage, app: *
         WORLD.tiles[vec.y][vec.x].flags |= .PATH;
     }
     player.current_path_index = xx(msg.count-1);
-
-    if player.current_path_index >= 0 player.state = .RUNNING;
-    else                              player.state = .IDLE;
-
+    player.state = ifx player.current_path_index >= 0 then .RUNNING else .IDLE;
 
     fast_forward_state(msg.state_index, app.current);
 
@@ -144,4 +141,28 @@ process_player_claim_region_response_message :: (msg: *PlayerClaimRegionResponse
         }
     }
     fast_forward_state(msg.state_index, app.current);
+}
+
+process_game_state_sync_message :: (msg: *GameStateSyncMessage, app: *AppState) {
+    log("process_game_state_sync_message\n");
+    game_state := *GAME_STATES[msg.state_index];
+
+    // Copy the synchronized state
+    game_state.current_income_tick = msg.current_income_tick;
+    game_state.nr_of_players = msg.nr_of_players;
+    game_state.players = msg.players;
+    game_state.actions = msg.actions;
+    game_state.nr_of_actions = msg.nr_of_actions;
+
+    // Update world state
+    for y: 0..TILES_Y-1
+        for x: 0..TILES_X-1
+            WORLD.tiles[y][x].flags = msg.tile_flags[y][x];
+
+    WORLD.regions = msg.regions;
+
+    // Fast forward to current state if needed
+    if msg.state_index != app.current {
+        fast_forward_state(msg.state_index, app.current);
+    }
 }

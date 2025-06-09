@@ -182,6 +182,67 @@ ClientConnectResponseMessage :: struct {
     }
 }
 
+GameStateSyncData :: struct {
+    state_index: s16;
+    current_income_tick: float32;
+    nr_of_players: s32;
+    players: [MAX_PLAYERS]Player;
+    tile_flags: [TILES_Y][TILES_X]TileFlags;
+    regions: [MAX_REGIONS]Region;
+    actions: [MAX_ACTIONS]ActionRequest;
+    nr_of_actions: s32;
+}
+
+GameStateSyncMessage :: struct {
+    using #as base: Message;
+    using data: GameStateSyncData;
+
+    serialize :: (stream: *Stream, message: *Message) -> bool {
+        m := cast(*GameStateSyncMessage) message;
+        serialize_bits(stream, *m.state_index, 16);
+        serialize_float(stream, *m.current_income_tick);
+
+        serialize_bits(stream, *m.nr_of_players, 32);
+        for 0..m.nr_of_players-1 {
+            player := *m.players[it];
+            serialize_bits(stream, *player.uuid, 64);
+            serialize_float(stream, *player.speed);
+            serialize_float(stream, *player.position.x);
+            serialize_float(stream, *player.position.y);
+            serialize_bits(stream, *player.state, 8);
+            serialize_bits(stream, *player.current_path_index, 16);
+            for 0..PLAYER_PATH_COUNT-1
+                serialize_struct(stream, *player.path[it], MIN_TILES, MAX_TILES);
+        }
+
+        for y: 0..TILES_Y-1
+            for x: 0..TILES_X-1
+                serialize_bits(stream, *m.tile_flags[y][x], 8);
+
+        for 0..MAX_REGIONS-1 {
+            serialize_bits(stream, *m.regions[it].network_id, 32);
+            serialize_struct(stream, *m.regions[it].rect, MIN_TILES, MAX_TILES);
+            serialize_struct(stream, *m.regions[it].entrance_btn);
+            for entrance_idx: 0..ENTRANCE_SIZE-1
+                serialize_struct(stream, *m.regions[it].entrance[entrance_idx], MIN_TILES, MAX_TILES);
+        }
+
+        serialize_bits(stream, *m.nr_of_actions, 32);
+        for 0..m.nr_of_actions-1 {
+            action := *m.actions[it];
+            serialize_bits(stream, *action.uuid, 64);
+            serialize_struct(stream, *action.point, MIN_TILES, MAX_TILES);
+            serialize_struct(stream, *action.position);
+            serialize_bits(stream, *action.network_id, 32);
+            serialize_bits(stream, *action.b_value, 1);
+            serialize_bits(stream, *action.ignore, 1);
+            serialize_bits(stream, *action.kind, 16);
+        }
+
+        return true;
+    }
+}
+
 GameMessageType :: enum u16 {
     PLAYER_CLAIM_REGION_RESPONSE;
     PLAYER_CLICK_WORLD;
@@ -190,6 +251,7 @@ GameMessageType :: enum u16 {
     NEW_PLAYER;
     CLIENT_CONNECT;
     CLIENT_CONNECT_RESPONSE;
+    GAME_STATE_SYNC;
 }
 
 GameMessageFactory :: MessageFactory.{
@@ -204,6 +266,7 @@ GameMessageFactory :: MessageFactory.{
             case .NEW_PLAYER;                   return New(NewPlayerMessage);
             case .CLIENT_CONNECT;               return New(ClientConnectMessage);
             case .CLIENT_CONNECT_RESPONSE;      return New(ClientConnectResponseMessage);
+            case .GAME_STATE_SYNC;              return New(GameStateSyncMessage);
         }
     },
     serialize = (stream: *Stream, message: *Message) -> bool {
@@ -216,6 +279,7 @@ GameMessageFactory :: MessageFactory.{
             case .NEW_PLAYER;                   return NewPlayerMessage.serialize(stream, message);
             case .CLIENT_CONNECT;               return ClientConnectMessage.serialize(stream, message);
             case .CLIENT_CONNECT_RESPONSE;      return ClientConnectResponseMessage.serialize(stream, message);
+            case .GAME_STATE_SYNC;              return GameStateSyncMessage.serialize(stream, message);
         }
     }
 };
@@ -246,6 +310,7 @@ log_message_type :: (prefix: string, type: GameMessageType) {
         case .NEW_PLAYER;                   log("% NEW_PLAYER\n",                   prefix);
         case .CLIENT_CONNECT;               log("% CLIENT_CONNECT\n",               prefix);
         case .CLIENT_CONNECT_RESPONSE;      log("% CLIENT_CONNECT_RESPONSE\n",      prefix);
+        case .GAME_STATE_SYNC;              log("% GAME_STATE_SYNC\n",              prefix);
     }
 }
 

@@ -31,10 +31,13 @@ transform_to_view :: (view: View, rect: Rect, position: Vector2) -> Rectangle {
 
 transform_to_view :: (view: View, rect: Rect) -> Rectangle { return transform_to_view(view, rect, Vector2.{ rect.x, rect.y }); }
 
-draw_textured_rect :: (view: View, texture_rect: Rect, position: Vector2, texture: *Texture, tint: Color) {
+draw_textured_rect :: (view: View, texture_rect: Rect, position: Vector2, texture: *Texture, tint: Color, debug: bool = false) {
     dest_rect := transform_to_view(view, texture_rect, position);
     src_rect := to_raylib_rect(texture_rect);
     DrawTexturePro(texture, src_rect, dest_rect, Vector2.{0, 0}, 0.0, tint);
+    if debug {
+        DrawRectangleLinesEx(dest_rect, 1, RED);
+    }
 }
 
 draw_world :: (view: View, world: World, render_state: *RenderState) {
@@ -53,8 +56,11 @@ draw_world :: (view: View, world: World, render_state: *RenderState) {
         }
     }
 
-    for region: world.regions
+    for region: world.regions {
         DrawRectangleRec(transform_to_view(view, region.entrance_btn), DARKBLUE);
+
+        draw_textured_rect(view, region.headquarter_sprite.texture_rect, region.headquarter_sprite.position, *texture, region.headquarter_tint, true);
+    }
 }
 
 draw_players :: (view: View, current: *GameState, previous: *GameState, render_state: *RenderState) {

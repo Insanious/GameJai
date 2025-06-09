@@ -4,26 +4,25 @@ PLAYER_STATE :: enum u16 {
 }
 
 MAX_CLAIMED_REGIONS :: 2;
+MAX_QUEUED_ACTIONS :: 2;
 PLAYER_PATH_COUNT :: 16;
 Player :: struct {
-    using sprite: Sprite = .{ texture_id="resources/mage.bmp", texture_rect=Rect.{ x=0, y=0, w=32, h=48 } };
-    position: Vector2;
-    interpolated_position: Vector2;
-    is_interpolating: bool = false;
-
-    state: PLAYER_STATE = .IDLE;
-    speed: float32 = 160;
-
     path: [PLAYER_PATH_COUNT]Vector2i;
-    current_path_index: s16 = 0;
-
-    gold: s32 = 0;
-
+    using sprite: Sprite = .{ texture_id="resources/mage.bmp", texture_rect=Rect.{ x=0, y=0, w=32, h=48 } };
     claimed_regions: [MAX_CLAIMED_REGIONS]s64;
-    nr_of_claimed_regions: s16 = 0;
+    queued_actions: [MAX_QUEUED_ACTIONS]ActionRequest;
+    interpolated_position: Vector2;
 
     uuid: u64 = 0;
+    gold: s32 = 0;
+    speed: float32 = 160;
+    nr_of_queued_actions: s16 = 0;
+    nr_of_claimed_regions: s16 = 0;
+    current_path_index: s16 = 0;
+
+    state: PLAYER_STATE = .IDLE;
     is_client := false;
+    is_interpolating: bool = false;
 }
 
 add_player :: (using game_state: *GameState, uuid: u64, point: Vector2i, is_client: bool) {
@@ -44,6 +43,12 @@ get_player :: (using game_state: *GameState, uuid: u64) -> *Player {
             return *players[it];
 
     return null;
+}
+
+player_queue_action :: (using player: *Player, action: ActionRequest) {
+    assert(nr_of_queued_actions < MAX_QUEUED_ACTIONS);
+    queued_actions[nr_of_queued_actions] = action;
+    nr_of_queued_actions += 1;
 }
 
 player_feet_offset :: (using player: Player) -> Vector2 {

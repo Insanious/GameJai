@@ -15,6 +15,9 @@
 #load "infrastructure.jai";
 #load "client.jai";
 
+// #load "DeStruct.jai";
+// #run { de_struct(Player, bytes_per_line=2); }
+
 convert_input_to_actions :: (input_state: *InputState, game_state: *GameState) -> []ActionRequest {
     actions: [..]ActionRequest;
     uuid: u64 = ifx game_state.player_index != -1 then game_state.players[game_state.player_index].uuid else 69420;

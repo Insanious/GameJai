@@ -8,7 +8,7 @@ HALF_TILE_SIZE ::       Vector2.{16,  8};
 TILE_RECT_SIZE ::       Vector2.{32, 32};
 HALF_TILE_RECT_SIZE ::  Vector2.{16, 16};
 
-MAX_REGIONS :: 2;
+MAX_REGIONS :: 3;
 World :: struct {
     tiles: [TILES_Y][TILES_X]Tile;
     regions: [MAX_REGIONS]Region;
@@ -23,8 +23,7 @@ TileFlags :: enum_flags u8 {
 
 Tile :: struct {
     using sprite: Sprite = .{ texture_id="resources/tileset.bmp", texture_rect=Rect.{ x=0, y=0, w=#run TILE_RECT_SIZE.x, h=#run TILE_RECT_SIZE.y } };
-    position: Vector2;
-    flags: TileFlags = 0;
+    flags: TileFlags = .WALKABLE;
 }
 
 ENTRANCE_SIZE :: 3;
@@ -32,6 +31,9 @@ Region :: struct {
     rect: IntRect;
     entrance: [ENTRANCE_SIZE]Vector2i;
     entrance_btn: Rect;
+
+    headquarter_sprite: Sprite = .{ texture_id="resources/tileset.bmp", texture_rect=Rect.{ x=0, y=0, w=#run TILE_RECT_SIZE.x, h=#run TILE_RECT_SIZE.y } };
+    headquarter_tint: Color = DARKBLUE;
 
     network_id: u32 = 0;
 }
@@ -83,17 +85,24 @@ random_region :: () -> Region {
     mid := map_to_screen(entrance[ENTRANCE_SIZE/2]);
     entrance_btn: Rect = .{x=xx (mid.x + 10), y=xx (mid.y - 5), w=10, h=10};
 
-    return Region.{ rect=rect, entrance=entrance, entrance_btn=entrance_btn, network_id=get_new_network_id() };
+    region_midpoint := Vector2i.{ rect.x + (rect.w/2), rect.y + (rect.h/2) };
+    headquarter_pos := map_to_screen(region_midpoint.x, region_midpoint.y);
+    headquarter_pos.y -= TILE_SIZE.y;
+    log("\nrect: %, region_midpoint: %, headquarter_pos: % \n", rect, region_midpoint, headquarter_pos);
+
+    return Region.{
+        rect=rect,
+        entrance=entrance,
+        entrance_btn=entrance_btn,
+        headquarter_sprite.position=headquarter_pos,
+        network_id=get_new_network_id()
+    };
 }
 
 init_world :: (using world: *World) {
-    for tiles, y: tiles {
-        for * tile, x: tiles {
-            tile.texture_rect = .{ 0, 0, TILE_RECT_SIZE.x, TILE_RECT_SIZE.y };
+    for tiles, y: tiles
+        for * tile, x: tiles
             tile.position = map_to_screen(x, y);
-            tile.flags = .WALKABLE;
-        }
-    }
 
     for 0..MAX_REGIONS-1 {
         world.regions[it] = random_region();

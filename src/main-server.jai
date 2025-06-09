@@ -37,9 +37,11 @@ main :: () {
         if !network_update(app.network_manager.server, app.network_manager.apollo_time)
             break;
 
+
         num_ticks := cast(u8, floor(app.accumulator / FRAMETIME));
         if num_ticks > 0 {
             process_messages(*app);
+            broadcast_game_state(*app, app.network_manager.server);
 
             for 0..num_ticks-1 {
                 previous := app.current;

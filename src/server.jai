@@ -30,7 +30,24 @@ broadcast :: (server: *Server, type: GameMessageType, $message_type: Type, data:
     }
 }
 
+broadcast_game_state :: (app: *AppState, server: *Server) {
+    log("broadcast_game_state\n");
+    game_state := *GAME_STATES[app.current];
+    sync_data := GameStateSyncData.{
+        state_index=app.current,
+        current_income_tick=game_state.current_income_tick,
+        nr_of_players=game_state.nr_of_players,
+        players=game_state.players,
+        regions=WORLD.regions,
+        actions=game_state.actions,
+        nr_of_actions=game_state.nr_of_actions
+    };
+    for y: 0..TILES_Y-1
+        for x: 0..TILES_X-1
+            sync_data.tile_flags[y][x] = WORLD.tiles[y][x].flags;
 
+    broadcast(server, .GAME_STATE_SYNC, GameStateSyncMessage, sync_data);
+}
 
 DUMMY_STATE: GameState;
 process_messages :: (app: *AppState) {
